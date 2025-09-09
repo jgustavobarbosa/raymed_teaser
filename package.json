@@ -1,0 +1,51 @@
+{
+  "name": "raymed-alerts",
+  "version": "1.0.0",
+  "description": "Sistema de alertas de preços de medicamentos integrado com API Ray",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm -r --parallel dev",
+    "dev:web": "pnpm --filter @raymed/web dev",
+    "dev:server": "pnpm --filter @raymed/server dev",
+    "lint": "pnpm -r lint",
+    "lint:fix": "pnpm -r lint:fix",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "test": "pnpm -r test",
+    "test:e2e": "pnpm --filter @raymed/web test:e2e",
+    "db:migrate": "pnpm --filter @raymed/server db:migrate",
+    "db:seed": "pnpm --filter @raymed/server db:seed",
+    "db:studio": "pnpm --filter @raymed/server db:studio",
+    "cron:all": "pnpm --filter @raymed/server cron:all",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.1.3",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.2",
+    "prettier": "^3.2.5",
+    "typescript": "^5.3.3"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.4"
+}

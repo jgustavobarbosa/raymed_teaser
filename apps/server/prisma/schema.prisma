@@ -1,0 +1,144 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  createdAt     DateTime @default(now())
+  subscriptions Subscription[]
+  alerts        Alert[]
+  preferences   String? // JSON serializado
+  role          String   @default("user") // user | admin
+
+  @@map("users")
+}
+
+model Medication {
+  id               String   @id @default(cuid())
+  code             String   @unique // código/identificador externo
+  name             String
+  activeIngredient String?
+  category         String?
+  createdAt        DateTime @default(now())
+  prices           Price[]
+  subscriptions    Subscription[]
+  alerts           Alert[]
+
+  @@index([name])
+  @@index([category])
+  @@index([activeIngredient])
+  @@map("medications")
+}
+
+model Lab {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  cnpj      String?
+  createdAt DateTime @default(now())
+  prices    Price[]
+  subscriptions Subscription[]
+
+  @@index([name])
+  @@map("labs")
+}
+
+model Price {
+  id           String     @id @default(cuid())
+  medicationId String
+  labId        String?
+  source       String     @default("RayAPI") // "RayAPI", "Manual", "Import"
+  currency     String     @default("BRL")
+  value        Decimal
+  capturedAt   DateTime   // timestamp de captura da fonte
+  receivedAt   DateTime   @default(now()) // timestamp de inserção no banco
+  meta         String? // JSON serializado (SQLite) ou Json (PostgreSQL)
+  medication   Medication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  lab          Lab?       @relation(fields: [labId], references: [id], onDelete: SetNull)
+  alerts       Alert[]
+
+  @@index([medicationId, capturedAt])
+  @@index([labId, capturedAt])
+  @@index([capturedAt])
+  @@index([medicationId, labId, capturedAt])
+  @@map("prices")
+}
+
+model Subscription {
+  id           String     @id @default(cuid())
+  userId       String
+  medicationId String
+  labId        String?    // opcional: seguir um lab específico
+  minDropPct   Float?     // alerta se queda percentual >= (0.05 = 5%)
+  targetPrice  Decimal? // alerta se preço <= alvo
+  createdAt    DateTime   @default(now())
+  isActive     Boolean    @default(true)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  medication   Medication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  lab          Lab?       @relation(fields: [labId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, medicationId, labId])
+  @@index([userId])
+  @@index([medicationId])
+  @@index([isActive])
+  @@map("subscriptions")
+}
+
+model Alert {
+  id           String     @id @default(cuid())
+  userId       String
+  medicationId String
+  priceId      String
+  reason       String     // "DROP_PCT","TARGET_PRICE","SPIKE"
+  diffPct      Float?     // variação percentual
+  snapshot     String?      // dados do momento do alerta (JSON serializado)
+  sentAt       DateTime?  // quando foi enviado o email
+  createdAt    DateTime   @default(now())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  medication   Medication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  price        Price      @relation(fields: [priceId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([medicationId])
+  @@index([createdAt])
+  @@index([sentAt])
+  @@index([reason])
+  @@map("alerts")
+}
+
+// Tabela para controle de jobs
+model JobRun {
+  id        String   @id @default(cuid())
+  jobName   String   // "ingest", "analyze", "notify"
+  status    String   // "running", "completed", "failed"
+  startedAt DateTime @default(now())
+  endedAt   DateTime?
+  duration  Int?     // duração em ms
+  error     String?
+  meta      String?    // dados adicionais (ex: registros processados) - JSON serializado
+
+  @@index([jobName, startedAt])
+  @@index([status])
+  @@map("job_runs")
+}
+
+// Tabela para métricas de sistema
+model SystemMetric {
+  id        String   @id @default(cuid())
+  name      String   @unique // nome da métrica
+  value     Decimal
+  tags      String?    // tags adicionais (JSON serializado)
+  updatedAt DateTime @updatedAt @default(now())
+
+  @@index([name, updatedAt])
+  @@map("system_metrics")
+}
