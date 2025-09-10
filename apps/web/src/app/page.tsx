@@ -394,24 +394,94 @@ function HomeSection({ recentDrops, medications, loading, setActiveSection }) {
 }
 
 function MedicamentosSection({ medications, loading, onSelectMedication }) {
+  const [filteredMedications, setFilteredMedications] = useState(medications);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedPriceRange, setSelectedPriceRange] = useState('');
+  
+  // Atualizar medicamentos filtrados quando dados ou filtros mudarem
+  useEffect(() => {
+    let filtered = [...medications];
+    
+    // Filtro por busca
+    if (searchTerm) {
+      filtered = filtered.filter(med => 
+        med.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        med.activeIngredient?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        med.code.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    // Filtro por categoria
+    if (selectedCategory) {
+      filtered = filtered.filter(med => 
+        med.category?.toLowerCase().includes(selectedCategory.toLowerCase())
+      );
+    }
+    
+    // Filtro por faixa de preço
+    if (selectedPriceRange && med.currentPrice) {
+      filtered = filtered.filter(med => {
+        const price = parseFloat(med.currentPrice?.value || 0);
+        switch (selectedPriceRange) {
+          case '0-50':
+            return price >= 0 && price <= 50;
+          case '50-500':
+            return price > 50 && price <= 500;
+          case '500-2000':
+            return price > 500 && price <= 2000;
+          case '2000+':
+            return price > 2000;
+          default:
+            return true;
+        }
+      });
+    }
+    
+    setFilteredMedications(filtered);
+  }, [medications, searchTerm, selectedCategory, selectedPriceRange]);
+  
+  const handleSearch = () => {
+    // Busca já é automática, mas pode adicionar lógica adicional aqui
+    toast.success(`Encontrados ${filteredMedications.length} medicamentos`);
+  };
+  
   if (loading) return <div>Carregando medicamentos...</div>;
   
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Medicamentos ({medications.length})</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">💊 Medicamentos ({medications.length})</h1>
+        <div className="text-sm text-gray-600">
+          {filteredMedications.length !== medications.length && (
+            <span>📊 Mostrando {filteredMedications.length} de {medications.length}</span>
+          )}
+        </div>
+      </div>
       
-      {/* Filtros Melhorados */}
+      {/* Filtros Melhorados com Funcionalidade */}
       <Card className="raymed-card mb-6">
+        <CardHeader className="raymed-card-header">
+          <CardTitle>🔍 Buscar e Filtrar Medicamentos</CardTitle>
+          <CardDescription>
+            Use os filtros abaixo para encontrar medicamentos específicos
+          </CardDescription>
+        </CardHeader>
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label className="form-label">🏷️ Categoria:</label>
-              <select className="form-select">
+              <select 
+                className="form-select"
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+              >
                 <option value="">Todas as categorias</option>
                 <option value="Oncológico">🎗️ Oncológicos</option>
                 <option value="Imunobiológico">🧬 Imunobiológicos</option>
                 <option value="Analgésico">💊 Analgésicos</option>
                 <option value="Antibiótico">🦠 Antibióticos</option>
+                <option value="SUS">🏥 SUS - Atenção Básica</option>
                 <option value="Cardiovascular">❤️ Cardiovascular</option>
               </select>
             </div>
@@ -420,27 +490,78 @@ function MedicamentosSection({ medications, loading, onSelectMedication }) {
               <label className="form-label">🔍 Buscar:</label>
               <input 
                 type="text" 
-                placeholder="Nome ou princípio ativo..."
+                placeholder="Nome, princípio ativo ou código..."
                 className="form-input"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
             
             <div>
               <label className="form-label">💰 Faixa de Preço:</label>
-              <select className="form-select">
+              <select 
+                className="form-select"
+                value={selectedPriceRange}
+                onChange={(e) => setSelectedPriceRange(e.target.value)}
+              >
                 <option value="">Todos os preços</option>
-                <option value="0-50">R$ 0 - R$ 50 (Básicos)</option>
+                <option value="0-50">R$ 0 - R$ 50 (SUS/Básicos)</option>
                 <option value="50-500">R$ 50 - R$ 500 (Intermediários)</option>
                 <option value="500-2000">R$ 500 - R$ 2.000 (Especialidades)</option>
                 <option value="2000+">R$ 2.000+ (Alto custo)</option>
               </select>
             </div>
+            
+            <div className="flex items-end">
+              <button 
+                onClick={handleSearch}
+                className="btn-primary w-full"
+              >
+                <Search className="h-4 w-4 mr-2" />
+                🔍 Buscar
+              </button>
+            </div>
           </div>
+          
+          {/* Filtros ativos */}
+          {(searchTerm || selectedCategory || selectedPriceRange) && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="text-sm text-gray-600">Filtros ativos:</span>
+              {searchTerm && (
+                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                  🔍 "{searchTerm}"
+                  <button onClick={() => setSearchTerm('')} className="ml-1 text-blue-600">×</button>
+                </span>
+              )}
+              {selectedCategory && (
+                <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">
+                  🏷️ {selectedCategory}
+                  <button onClick={() => setSelectedCategory('')} className="ml-1 text-purple-600">×</button>
+                </span>
+              )}
+              {selectedPriceRange && (
+                <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
+                  💰 {selectedPriceRange}
+                  <button onClick={() => setSelectedPriceRange('')} className="ml-1 text-green-600">×</button>
+                </span>
+              )}
+              <button 
+                onClick={() => {
+                  setSearchTerm('');
+                  setSelectedCategory('');
+                  setSelectedPriceRange('');
+                }}
+                className="text-xs text-gray-500 hover:text-gray-700"
+              >
+                🗑️ Limpar todos
+              </button>
+            </div>
+          )}
         </CardContent>
       </Card>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {medications.map((med) => (
+        {filteredMedications.map((med) => (
           <Card key={med.id} className="hover:shadow-md transition-shadow">
             <CardHeader>
               <CardTitle className="text-lg">{med.name}</CardTitle>
