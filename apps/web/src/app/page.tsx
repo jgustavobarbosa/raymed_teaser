@@ -9,6 +9,7 @@ import { toast } from '@/components/ui/use-toast';
 import { PriceEvolutionChart } from '@/components/price-evolution-chart';
 import { AlertConfigurator } from '@/components/alert-configurator';
 import MLDashboard from '@/components/ml-dashboard';
+import AdvancedChat from '@/components/advanced-chat';
 
 export default function HomePage() {
   const [activeSection, setActiveSection] = useState('home');
@@ -904,79 +905,12 @@ function MLSection({ selectedMedication }) {
 function ChatSection({ messages, input, setInput, onSend }) {
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Chat LLM - Perguntas sobre Medicamentos</h1>
+      <h1 className="text-3xl font-bold flex items-center gap-3">
+        <Brain className="h-8 w-8 text-indigo-600" />
+        Chat LLM Evoluído
+      </h1>
       
-      <Card>
-        <CardHeader>
-          <CardTitle>💬 Chat com IA Farmacêutica</CardTitle>
-          <CardDescription>
-            Faça perguntas sobre preços, tendências e medicamentos (131 medicamentos disponíveis)
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Sugestões de perguntas */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
-            {[
-              "Quais medicamentos com rituximabe temos?",
-              "Compare preços de medicamentos oncológicos",
-              "Qual laboratório tem melhores preços?",
-              "Medicamentos mais caros para câncer"
-            ].map((suggestion, i) => (
-              <button
-                key={i}
-                onClick={() => setInput(suggestion)}
-                className="text-left p-2 text-sm border rounded hover:bg-gray-50 text-blue-600"
-              >
-                "{suggestion}"
-              </button>
-            ))}
-          </div>
-          
-          {/* Messages */}
-          <div className="h-96 border rounded p-4 overflow-y-auto space-y-3">
-            {messages.length === 0 ? (
-              <div className="text-center text-muted-foreground">
-                <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Faça uma pergunta sobre medicamentos!</p>
-                <p className="text-sm">Base com 131 medicamentos e 7.956 preços</p>
-              </div>
-            ) : (
-              messages.map((msg, i) => (
-                <div key={i} className={`p-3 rounded ${
-                  msg.role === 'user' 
-                    ? 'bg-blue-100 ml-12' 
-                    : 'bg-gray-100 mr-12'
-                }`}>
-                  <p className="text-sm font-medium mb-1">
-                    {msg.role === 'user' ? 'Você' : '🤖 RayMed IA Farmacêutica'}
-                  </p>
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
-                </div>
-              ))
-            )}
-          </div>
-          
-          {/* Input */}
-          <div className="flex gap-3">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && onSend()}
-              placeholder="Ex: Quais medicamentos com rituximabe temos disponíveis?"
-              className="form-input flex-1"
-            />
-            <button 
-              onClick={onSend} 
-              disabled={!input.trim()}
-              className="btn-primary px-6"
-            >
-              <MessageSquare className="h-4 w-4 mr-2" />
-              Enviar
-            </button>
-          </div>
-        </CardContent>
-      </Card>
+      <AdvancedChat />
     </div>
   );
 }
