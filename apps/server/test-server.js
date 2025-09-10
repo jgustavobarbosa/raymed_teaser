@@ -92,7 +92,7 @@ app.get('/api/medications', async (req, res) => {
   }
 });
 
-// Laboratórios
+// Laboratórios com ranking de preços
 app.get('/api/labs', async (req, res) => {
   try {
     const labs = await prisma.lab.findMany({
@@ -102,12 +102,125 @@ app.get('/api/labs', async (req, res) => {
             prices: true,
           },
         },
+        prices: {
+          include: {
+            medication: true
+          },
+          orderBy: { capturedAt: 'desc' },
+          take: 100 // Últimos 100 preços
+        }
       },
     });
     
-    res.json({ data: labs });
+    // Calcular estatísticas por laboratório
+    const labsWithStats = labs.map(lab => {
+      const prices = lab.prices.map(p => parseFloat(p.value.toString()));
+      const avgPrice = prices.length > 0 
+        ? prices.reduce((sum, price) => sum + price, 0) / prices.length 
+        : 0;
+      
+      const uniqueMedications = [...new Set(lab.prices.map(p => p.medicationId))];
+      
+      return {
+        id: lab.id,
+        name: lab.name,
+        cnpj: lab.cnpj,
+        totalPrices: lab._count.prices,
+        uniqueMedications: uniqueMedications.length,
+        avgPrice: Math.round(avgPrice * 100) / 100,
+        recentPrices: lab.prices.slice(0, 5).map(p => ({
+          medication: p.medication.name,
+          price: parseFloat(p.value.toString()),
+          date: p.capturedAt
+        }))
+      };
+    });
+    
+    // Ordenar por menor preço médio (melhores ofertas primeiro)
+    labsWithStats.sort((a, b) => a.avgPrice - b.avgPrice);
+    
+    res.json({ 
+      data: labsWithStats,
+      totalLaboratories: labsWithStats.length,
+      avgPriceOverall: labsWithStats.reduce((sum, lab) => sum + lab.avgPrice, 0) / labsWithStats.length
+    });
   } catch (error) {
     console.error('Erro ao buscar laboratórios:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Detalhes de laboratório específico com ranking de medicamentos
+app.get('/api/labs/:id/medications', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const lab = await prisma.lab.findUnique({
+      where: { id },
+      include: {
+        prices: {
+          include: {
+            medication: true
+          },
+          orderBy: { capturedAt: 'desc' }
+        }
+      }
+    });
+    
+    if (!lab) {
+      return res.status(404).json({ error: 'Laboratório não encontrado' });
+    }
+    
+    // Agrupar por medicamento e pegar preço mais recente
+    const medicationPrices = {};
+    
+    lab.prices.forEach(price => {
+      const medId = price.medicationId;
+      if (!medicationPrices[medId] || price.capturedAt > medicationPrices[medId].date) {
+        medicationPrices[medId] = {
+          medication: price.medication,
+          price: parseFloat(price.value.toString()),
+          date: price.capturedAt
+        };
+      }
+    });
+    
+    // Converter para array e ordenar por preço (mais barato primeiro)
+    const rankedMedications = Object.values(medicationPrices)
+      .sort((a, b) => a.price - b.price)
+      .map((item, index) => ({
+        rank: index + 1,
+        medication: {
+          id: item.medication.id,
+          name: item.medication.name,
+          code: item.medication.code,
+          category: item.medication.category,
+          activeIngredient: item.medication.activeIngredient
+        },
+        price: item.price,
+        lastUpdate: item.date,
+        priceCategory: item.price <= 50 ? 'Básico' : 
+                      item.price <= 500 ? 'Intermediário' :
+                      item.price <= 2000 ? 'Especialidade' : 'Alto Custo'
+      }));
+    
+    res.json({
+      laboratory: {
+        id: lab.id,
+        name: lab.name,
+        cnpj: lab.cnpj
+      },
+      medications: rankedMedications,
+      statistics: {
+        totalMedications: rankedMedications.length,
+        cheapestPrice: rankedMedications[0]?.price || 0,
+        mostExpensivePrice: rankedMedications[rankedMedications.length - 1]?.price || 0,
+        avgPrice: rankedMedications.reduce((sum, med) => sum + med.price, 0) / rankedMedications.length || 0
+      }
+    });
+    
+  } catch (error) {
+    console.error('Erro ao buscar medicamentos do laboratório:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
@@ -526,6 +639,8 @@ app.post('/api/llm/query', async (req, res) => {
         cnpj: lab.cnpj
       })),
       categorias: [...new Set(medications.map(m => m.category?.split(' | ')[0]).filter(Boolean))],
+      medicamentosSUS: medications.filter(m => m.category?.includes('SUS')).length,
+      medicamentosPrivados: medications.filter(m => !m.category?.includes('SUS')).length,
       faixasPreco: {
         maisCaros: medications
           .filter(m => m.prices[0])
@@ -613,6 +728,8 @@ ${foundMeds.map(med =>
 
 📊 DADOS DA BASE (ATUALIZADOS):
 - Total: ${contextData.totalMedicamentos} medicamentos
+- SUS (Atenção Básica): ${contextData.medicamentosSUS} medicamentos
+- Privados/Especializados: ${contextData.medicamentosPrivados} medicamentos  
 - Preços: ${contextData.totalPrecos} registros históricos
 - Período: 12 meses de histórico
 

@@ -29,11 +29,25 @@ async function sendNotifications() {
 
     console.log(`📮 Processando ${pendingAlerts.length} alertas pendentes...`);
 
-    // Criar transporter Ethereal para desenvolvimento
+    // Configurar transporter baseado no ambiente
     let transporter;
+    let useRealSMTP = process.env.SMTP_USER && process.env.SMTP_PASS;
     
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('🔧 Criando conta Ethereal para teste...');
+    if (useRealSMTP) {
+      console.log('📧 Configurando SMTP real...');
+      transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        secure: false,
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        },
+      });
+      
+      console.log(`📧 SMTP configurado: ${process.env.SMTP_USER}`);
+    } else {
+      console.log('🔧 Usando Ethereal para demonstração...');
       const testAccount = await nodemailer.createTestAccount();
       
       transporter = nodemailer.createTransport({
@@ -47,17 +61,6 @@ async function sendNotifications() {
       });
       
       console.log('📧 Conta Ethereal criada:', testAccount.user);
-    } else {
-      // Usar SMTP real em produção
-      transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || 'smtp.gmail.com',
-        port: parseInt(process.env.SMTP_PORT || '587'),
-        secure: false,
-        auth: {
-          user: process.env.SMTP_USER || 'janioguga@gmail.com',
-          pass: process.env.SMTP_PASS,
-        },
-      });
     }
 
     // Agrupar alertas por usuário
@@ -113,10 +116,12 @@ async function sendNotifications() {
 
         emailsSent++;
         
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('📧 Email enviado! Preview URL:', nodemailer.getTestMessageUrl(info));
+        if (useRealSMTP) {
+          console.log(`📧 ✅ Email REAL enviado para ${user.email}`);
+          console.log(`   📊 Assunto: ${userAlerts.length} Novo(s) Alerta(s) - RayMed`);
+          console.log(`   🔔 Alertas: ${userAlerts.map(a => a.medication.name).join(', ')}`);
         } else {
-          console.log(`📧 Email enviado para ${user.email}`);
+          console.log('📧 Email Ethereal enviado! Preview URL:', nodemailer.getTestMessageUrl(info));
         }
         
       } catch (error) {

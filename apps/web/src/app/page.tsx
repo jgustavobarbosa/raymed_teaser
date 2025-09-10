@@ -168,11 +168,12 @@ export default function HomePage() {
               </div>
               <p className="text-gray-600 mb-4">
                 Sistema inteligente de monitoramento e alertas de preços de medicamentos. 
-                Monitore 131 medicamentos em 35 laboratórios com alertas personalizados.
+                Monitore 832 medicamentos (especializados + SUS) em 35 laboratórios brasileiros com alertas personalizados.
               </p>
               <div className="flex items-center space-x-4 text-sm text-gray-500">
-                <span>📊 131 medicamentos</span>
+                <span>📊 832 medicamentos</span>
                 <span>🏥 35 laboratórios</span>
+                <span>💰 20.282 preços</span>
                 <span>🤖 IA farmacêutica</span>
               </div>
             </div>
@@ -235,26 +236,31 @@ function HomeSection({ recentDrops, medications, loading, setActiveSection }) {
           </div>
           <h1 className="text-5xl font-bold mb-4">RayMed</h1>
           <p className="text-2xl mb-2 opacity-95">Alertas Inteligentes de Medicamentos</p>
-          <p className="text-lg mb-8 opacity-80 max-w-2xl mx-auto">
-            Monitore preços de 131 medicamentos em 35 laboratórios brasileiros. 
-            Receba alertas personalizados e consulte nossa IA farmacêutica especializada.
+          <p className="text-lg mb-8 opacity-80 max-w-3xl mx-auto">
+            Monitore preços de 832 medicamentos (especializados + SUS) em 35 laboratórios brasileiros. 
+            Receba alertas personalizados e consulte nossa IA farmacêutica especializada com base completa.
           </p>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 max-w-2xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 max-w-4xl mx-auto">
             <div className="bg-white/10 backdrop-blur rounded-lg p-4">
               <Search className="h-8 w-8 mx-auto mb-2" />
-              <div className="font-semibold">131 Medicamentos</div>
-              <div className="text-sm opacity-80">Base completa</div>
+              <div className="font-semibold">832 Medicamentos</div>
+              <div className="text-sm opacity-80">Especializados + SUS</div>
             </div>
             <div className="bg-white/10 backdrop-blur rounded-lg p-4">
               <Building2 className="h-8 w-8 mx-auto mb-2" />
               <div className="font-semibold">35 Laboratórios</div>
-              <div className="text-sm opacity-80">Preços comparados</div>
+              <div className="text-sm opacity-80">Brasileiros</div>
+            </div>
+            <div className="bg-white/10 backdrop-blur rounded-lg p-4">
+              <Activity className="h-8 w-8 mx-auto mb-2" />
+              <div className="font-semibold">20.282 Preços</div>
+              <div className="text-sm opacity-80">Histórico 12 meses</div>
             </div>
             <div className="bg-white/10 backdrop-blur rounded-lg p-4">
               <Bell className="h-8 w-8 mx-auto mb-2" />
               <div className="font-semibold">Alertas Reais</div>
-              <div className="text-sm opacity-80">Via Ethereal</div>
+              <div className="text-sm opacity-80">Via Email</div>
             </div>
           </div>
           
@@ -288,13 +294,13 @@ function HomeSection({ recentDrops, medications, loading, setActiveSection }) {
             <div className="text-3xl font-bold text-gray-800">{medications.length}</div>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-gray-600">Base farmacológica completa</p>
-            <button 
-              onClick={() => setActiveSection('medicamentos')}
-              className="text-xs text-purple-600 hover:text-purple-800 mt-1"
-            >
-              Ver todos →
-            </button>
+              <p className="text-sm text-gray-600">Especializados + SUS</p>
+              <button 
+                onClick={() => setActiveSection('medicamentos')}
+                className="text-xs text-purple-600 hover:text-purple-800 mt-1"
+              >
+                Ver todos →
+              </button>
           </CardContent>
         </Card>
         
@@ -609,26 +615,168 @@ function MedicamentosSection({ medications, loading, onSelectMedication }) {
 }
 
 function LaboratoriosSection({ labs, loading }) {
+  const [selectedLab, setSelectedLab] = useState(null);
+  const [labMedications, setLabMedications] = useState([]);
+  const [loadingMedications, setLoadingMedications] = useState(false);
+  
+  const fetchLabMedications = async (labId, labName) => {
+    try {
+      setLoadingMedications(true);
+      setSelectedLab(labName);
+      
+      const response = await fetch(`/api/server/labs/${labId}/medications`);
+      if (response.ok) {
+        const data = await response.json();
+        setLabMedications(data.medications || []);
+        toast.success(`Carregados medicamentos do ${labName}`);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar medicamentos:', error);
+      toast.error('Erro ao carregar medicamentos');
+    } finally {
+      setLoadingMedications(false);
+    }
+  };
+  
   if (loading) return <div>Carregando laboratórios...</div>;
   
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Laboratórios</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {labs.map((lab) => (
-          <Card key={lab.id}>
-            <CardHeader>
-              <CardTitle>{lab.name}</CardTitle>
-              <CardDescription>CNPJ: {lab.cnpj || 'N/A'}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                {lab._count?.prices || 0} preços registrados
-              </p>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">🏥 Laboratórios ({labs.length})</h1>
+        {selectedLab && (
+          <button 
+            onClick={() => {setSelectedLab(null); setLabMedications([]);}}
+            className="text-sm text-gray-600 hover:text-gray-800"
+          >
+            ← Voltar para lista
+          </button>
+        )}
       </div>
+      
+      {!selectedLab ? (
+        // Lista de laboratórios com ranking
+        <div className="space-y-4">
+          <Card className="raymed-card">
+            <CardHeader className="raymed-card-header">
+              <CardTitle>🏆 Ranking de Laboratórios por Preço Médio</CardTitle>
+              <CardDescription>
+                Laboratórios ordenados do menor para o maior preço médio (melhores ofertas primeiro)
+              </CardDescription>
+            </CardHeader>
+          </Card>
+          
+          <div className="grid grid-cols-1 gap-4">
+            {labs.map((lab, index) => (
+              <Card 
+                key={lab.id} 
+                className="raymed-card cursor-pointer hover:shadow-lg transition-all"
+                onClick={() => fetchLabMedications(lab.id, lab.name)}
+              >
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
+                        index === 0 ? 'bg-yellow-500' :
+                        index === 1 ? 'bg-gray-400' :
+                        index === 2 ? 'bg-amber-600' :
+                        'bg-blue-500'
+                      }`}>
+                        {index + 1}
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">{lab.name}</CardTitle>
+                        <CardDescription>
+                          {lab.cnpj ? `CNPJ: ${lab.cnpj}` : 'CNPJ não informado'}
+                        </CardDescription>
+                      </div>
+                    </div>
+                    
+                    <div className="text-right">
+                      <div className="text-2xl font-bold text-green-600">
+                        {formatCurrency(lab.avgPrice || 0)}
+                      </div>
+                      <div className="text-xs text-gray-500">preço médio</div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                      <div className="text-lg font-semibold text-blue-600">
+                        {lab.uniqueMedications || 0}
+                      </div>
+                      <div className="text-xs text-gray-500">medicamentos</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-semibold text-purple-600">
+                        {lab.totalPrices || 0}
+                      </div>
+                      <div className="text-xs text-gray-500">preços</div>
+                    </div>
+                    <div>
+                      <button className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                        Ver medicamentos →
+                      </button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      ) : (
+        // Detalhes do laboratório selecionado
+        <div className="space-y-4">
+          <Card className="raymed-card">
+            <CardHeader className="raymed-card-header">
+              <CardTitle>🏥 {selectedLab} - Ranking de Medicamentos</CardTitle>
+              <CardDescription>
+                Medicamentos ordenados por preço (1º = mais barato)
+              </CardDescription>
+            </CardHeader>
+          </Card>
+          
+          {loadingMedications ? (
+            <div className="text-center py-8">Carregando medicamentos...</div>
+          ) : (
+            <div className="grid grid-cols-1 gap-2">
+              {labMedications.map((item) => (
+                <Card key={item.medication.id} className="raymed-card">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm ${
+                          item.rank <= 3 ? 'bg-green-500' :
+                          item.rank <= 10 ? 'bg-blue-500' :
+                          'bg-gray-500'
+                        }`}>
+                          {item.rank}
+                        </div>
+                        <div>
+                          <div className="font-semibold">{item.medication.name}</div>
+                          <div className="text-sm text-gray-600">
+                            {item.medication.category?.split(' | ')[0]} | {item.medication.activeIngredient}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-green-600">
+                          {formatCurrency(item.price)}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {item.priceCategory}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
