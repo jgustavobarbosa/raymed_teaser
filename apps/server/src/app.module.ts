@@ -16,6 +16,7 @@ import { LlmModule } from './llm/llm.module';
 import { JobsModule } from './jobs/jobs.module';
 import { NotificationModule } from './notification/notification.module';
 import { CacheModule } from './cache/cache.module';
+import { MLModule } from './ml/ml.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { CacheModule } from './cache/cache.module';
     LlmModule,
     JobsModule,
     NotificationModule,
+    MLModule,
   ],
 })
 export class AppModule {}

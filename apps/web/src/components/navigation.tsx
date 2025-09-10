@@ -10,7 +10,9 @@ import {
   Bell, 
   Settings, 
   MessageSquare,
-  Shield
+  Shield,
+  Brain,
+  Activity
 } from 'lucide-react';
 // import { cn } from '@/lib/utils'; // Removido - não usado
 
@@ -18,7 +20,9 @@ const navigation = [
   { name: 'Home', href: '/', icon: Home },
   { name: 'Medicamentos', href: '/#medicamentos', icon: Search },
   { name: 'Laboratórios', href: '/#laboratorios', icon: Building2 },
+  { name: 'Gráficos', href: '/#graficos', icon: Activity },
   { name: 'Alertas', href: '/#alertas', icon: Bell },
+  { name: 'ML Analytics', href: '/#ml', icon: Brain },
   { name: 'Chat', href: '/#chat', icon: MessageSquare },
 ];
 

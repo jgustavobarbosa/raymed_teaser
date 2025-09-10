@@ -132,3 +132,8 @@ playwright/.cache/
 .backend_pid
 .frontend_pid
 apps/server/.env.bak
+apps/server/python/venv/
+apps/server/python/*.pyc
+apps/server/python/__pycache__/
+*.log
+*.tmp

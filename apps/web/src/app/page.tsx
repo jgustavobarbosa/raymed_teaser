@@ -3,11 +3,12 @@
 import { useState, useEffect, Suspense } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, TrendingDown, Bell, Search, Building2, MessageSquare, Activity } from 'lucide-react';
+import { Plus, TrendingDown, Bell, Search, Building2, MessageSquare, Activity, Brain } from 'lucide-react';
 import { formatCurrency, formatPercentage } from '@/lib/utils';
 import { toast } from '@/components/ui/use-toast';
 import { PriceEvolutionChart } from '@/components/price-evolution-chart';
 import { AlertConfigurator } from '@/components/alert-configurator';
+import MLDashboard from '@/components/ml-dashboard';
 
 export default function HomePage() {
   const [activeSection, setActiveSection] = useState('home');
@@ -96,6 +97,8 @@ export default function HomePage() {
         return <GraficosSection selectedMedication={selectedMedicationForChart} medications={medications} />;
       case 'configurar':
         return <ConfigurarSection />;
+      case 'ml':
+        return <MLSection selectedMedication={selectedMedicationForChart} />;
       case 'chat':
         return <ChatSection messages={chatMessages} input={chatInput} setInput={setChatInput} onSend={sendChatMessage} />;
       default:
@@ -124,6 +127,7 @@ export default function HomePage() {
                 { id: 'graficos', name: 'Gráficos', icon: Activity, color: 'green' },
                 { id: 'configurar', name: 'Configurar', icon: Bell, color: 'orange' },
                 { id: 'alertas', name: 'Alertas', icon: Bell, color: 'red' },
+                { id: 'ml', name: 'ML Analytics', icon: Brain, color: 'purple' },
                 { id: 'chat', name: 'Chat', icon: MessageSquare, color: 'teal' },
               ].map((item) => {
                 const Icon = item.icon;
@@ -880,6 +884,19 @@ function ConfigurarSection() {
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Configurar Alertas Personalizados</h1>
       <AlertConfigurator />
+    </div>
+  );
+}
+
+function MLSection({ selectedMedication }) {
+  return (
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold flex items-center gap-3">
+        <Brain className="h-8 w-8 text-purple-600" />
+        Machine Learning Analytics
+      </h1>
+      
+      <MLDashboard medicationCode={selectedMedication} />
     </div>
   );
 }

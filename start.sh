@@ -217,6 +217,16 @@ EOF
     
     cd ../..
     
+    # Setup opcional de Machine Learning
+    if [ -f "scripts/setup-ml.sh" ]; then
+        print_step "Configurando Machine Learning (opcional)..."
+        if ./scripts/setup-ml.sh > /dev/null 2>&1; then
+            print_success "Machine Learning configurado com modelos avançados"
+        else
+            print_warning "ML setup falhou - usando modelos JavaScript fallback"
+        fi
+    fi
+    
     # Criar script de parada
     cat > stop.sh << 'EOF'
 #!/bin/bash

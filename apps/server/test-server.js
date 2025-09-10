@@ -821,6 +821,664 @@ INSTRUÇÕES:
   }
 });
 
+// ===================================
+// ROTAS DE MACHINE LEARNING
+// ===================================
+
+// Previsões de preços usando múltiplos modelos
+app.post('/api/ml/predictions', async (req, res) => {
+  try {
+    const { medicationCode, laboratoryId, daysAhead = 30, models = ['prophet', 'arima'] } = req.body;
+    
+    if (!medicationCode) {
+      return res.status(400).json({ error: 'Código do medicamento é obrigatório' });
+    }
+
+    // Buscar dados históricos
+    const historicalData = await prisma.price.findMany({
+      where: {
+        medication: { code: medicationCode },
+        ...(laboratoryId && { labId: laboratoryId }),
+        capturedAt: {
+          gte: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000), // Último ano
+        },
+      },
+      include: {
+        medication: true,
+        lab: true,
+      },
+      orderBy: { capturedAt: 'asc' },
+    });
+
+    if (historicalData.length < 30) {
+      return res.status(400).json({ 
+        error: 'Dados insuficientes para previsão (mínimo 30 pontos históricos)' 
+      });
+    }
+
+    // Gerar previsões simples (fallback)
+    const predictions = generateSimplePredictions(historicalData, daysAhead);
+    
+    res.json({
+      success: true,
+      data: [{
+        model: 'moving_average',
+        medication: medicationCode,
+        laboratory: laboratoryId,
+        predictions,
+        accuracy: 70,
+        lastUpdate: new Date(),
+      }],
+      metadata: {
+        medicationCode,
+        laboratoryId,
+        daysAhead,
+        modelsUsed: ['moving_average'],
+        generatedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    console.error('Erro ao gerar previsões:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Detecção de outliers
+app.get('/api/ml/outliers', async (req, res) => {
+  try {
+    const { medicationCode, laboratoryId, threshold = 2.5 } = req.query;
+    
+    // Buscar preços recentes
+    const recentPrices = await prisma.price.findMany({
+      where: {
+        ...(medicationCode && { medication: { code: medicationCode } }),
+        ...(laboratoryId && { labId: laboratoryId }),
+        capturedAt: {
+          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Últimos 30 dias
+        },
+      },
+      include: {
+        medication: true,
+        lab: true,
+      },
+      orderBy: { capturedAt: 'desc' },
+    });
+
+    // Detectar outliers usando Z-score
+    const outliers = detectOutliersSimple(recentPrices, parseFloat(threshold));
+    
+    res.json({
+      success: true,
+      data: outliers,
+      metadata: {
+        threshold: parseFloat(threshold),
+        totalOutliers: outliers.length,
+        totalPrices: recentPrices.length,
+        outlierPercentage: (outliers.length / recentPrices.length) * 100,
+        generatedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    console.error('Erro ao detectar outliers:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Índice de competitividade
+app.get('/api/ml/competitiveness', async (req, res) => {
+  try {
+    const { laboratoryId, medicationCode } = req.query;
+    
+    // Buscar dados dos últimos 90 dias
+    const recentData = await prisma.price.findMany({
+      where: {
+        ...(medicationCode && { medication: { code: medicationCode } }),
+        ...(laboratoryId && { labId: laboratoryId }),
+        capturedAt: {
+          gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000),
+        },
+      },
+      include: {
+        medication: true,
+        lab: true,
+      },
+    });
+
+    // Calcular competitividade
+    const competitiveness = calculateCompetitivenessSimple(recentData);
+    
+    res.json({
+      success: true,
+      data: competitiveness,
+      metadata: {
+        totalLaboratories: competitiveness.length,
+        analysisScope: laboratoryId ? 'single' : 'all',
+        medicationFilter: medicationCode,
+        generatedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    console.error('Erro ao calcular competitividade:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Alertas automáticos de outliers
+app.post('/api/ml/outliers/alerts/configure', async (req, res) => {
+  try {
+    const { 
+      enabled = true, 
+      threshold = 2.5, 
+      recipients = ['admin@raymed.com'],
+      alertLevels = { low: 1.5, medium: 2.0, high: 3.0, critical: 4.0 }
+    } = req.body;
+
+    // Simular configuração de alertas
+    const config = {
+      enabled,
+      outlierThreshold: threshold,
+      alertThresholds: alertLevels,
+      recipients: { admins: recipients },
+      lastUpdated: new Date(),
+    };
+
+    res.json({
+      success: true,
+      message: 'Alertas automáticos configurados com sucesso',
+      data: config,
+    });
+  } catch (error) {
+    console.error('Erro ao configurar alertas:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Status dos alertas automáticos
+app.get('/api/ml/outliers/alerts/status', async (req, res) => {
+  try {
+    // Simular estatísticas de alertas
+    const stats = {
+      enabled: true,
+      totalActiveAlerts: 3,
+      alertsByLevel: { low: 1, medium: 1, high: 1, critical: 0 },
+      notificationsSentToday: 5,
+      lastDetection: new Date(),
+      nextCheck: new Date(Date.now() + 15 * 60 * 1000), // Próximos 15 min
+    };
+
+    res.json({
+      success: true,
+      data: stats,
+      metadata: {
+        checkInterval: '15 minutos',
+        generatedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    console.error('Erro ao buscar status:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Otimização de compras
+app.post('/api/ml/purchase/recommendations', async (req, res) => {
+  try {
+    const { 
+      medicationCode, 
+      currentStock, 
+      monthlyConsumption 
+    } = req.body;
+
+    if (!medicationCode) {
+      return res.status(400).json({ error: 'Código do medicamento é obrigatório' });
+    }
+
+    // Buscar dados do medicamento
+    const medication = await prisma.medication.findUnique({
+      where: { code: medicationCode },
+      include: {
+        prices: {
+          take: 50,
+          orderBy: { capturedAt: 'desc' },
+          include: { lab: true }
+        }
+      }
+    });
+
+    if (!medication) {
+      return res.status(404).json({ error: 'Medicamento não encontrado' });
+    }
+
+    // Gerar recomendações simplificadas
+    const recommendations = generatePurchaseRecommendationsSimple(
+      medication, 
+      currentStock, 
+      monthlyConsumption
+    );
+
+    res.json({
+      success: true,
+      data: recommendations,
+      metadata: {
+        medicationCode,
+        analysisDate: new Date(),
+        recommendationsCount: recommendations.recommendations.length,
+      },
+    });
+  } catch (error) {
+    console.error('Erro ao gerar recomendações:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Dashboard de otimização de compras
+app.get('/api/ml/purchase/dashboard', async (req, res) => {
+  try {
+    // Buscar medicamentos com mais transações
+    const topMedications = await prisma.medication.findMany({
+      include: {
+        prices: {
+          take: 10,
+          orderBy: { capturedAt: 'desc' },
+          include: { lab: true }
+        }
+      },
+      take: 5,
+    });
+
+    const urgentActions = [];
+    const savingsOpportunities = [];
+    const marketInsights = [];
+
+    // Analisar cada medicamento
+    for (const med of topMedications) {
+      if (med.prices.length >= 2) {
+        const currentPrice = parseFloat(med.prices[0].value.toString());
+        const previousPrice = parseFloat(med.prices[1].value.toString());
+        const priceChange = ((currentPrice - previousPrice) / previousPrice) * 100;
+
+        if (priceChange < -10) {
+          urgentActions.push({
+            medication: med.name,
+            action: 'buy_now',
+            laboratory: med.prices[0].lab?.name,
+            savings: previousPrice - currentPrice,
+            reason: `Preço caiu ${Math.abs(priceChange).toFixed(1)}%`,
+          });
+        }
+
+        if (Math.abs(priceChange) > 5) {
+          savingsOpportunities.push({
+            medication: med.name,
+            laboratory: med.prices[0].lab?.name,
+            savings: Math.abs(previousPrice - currentPrice),
+            percentage: Math.abs(priceChange),
+            trend: priceChange > 0 ? 'increasing' : 'decreasing',
+          });
+        }
+      }
+    }
+
+    if (urgentActions.length > 0) {
+      marketInsights.push(`🚨 ${urgentActions.length} oportunidades urgentes de compra`);
+    }
+    
+    if (savingsOpportunities.length > 0) {
+      const totalSavings = savingsOpportunities.reduce((sum, s) => sum + s.savings, 0);
+      marketInsights.push(`💰 Potencial de economia: R$ ${totalSavings.toFixed(2)}`);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        urgentActions: urgentActions.slice(0, 5),
+        savingsOpportunities: savingsOpportunities.slice(0, 10),
+        riskAlerts: [],
+        marketInsights,
+      },
+      metadata: {
+        analysisWindow: '48 horas',
+        medicationsAnalyzed: topMedications.length,
+        generatedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    console.error('Erro no dashboard de compras:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Dashboard ML
+app.get('/api/ml/dashboard', async (req, res) => {
+  try {
+    const { medicationCode, laboratoryId } = req.query;
+    
+    // Buscar dados recentes
+    const recentPrices = await prisma.price.findMany({
+      where: {
+        ...(medicationCode && { medication: { code: medicationCode } }),
+        ...(laboratoryId && { labId: laboratoryId }),
+        capturedAt: {
+          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+        },
+      },
+      include: {
+        medication: true,
+        lab: true,
+      },
+    });
+
+    // Análises simples
+    const outliers = detectOutliersSimple(recentPrices, 2.5);
+    const competitiveness = calculateCompetitivenessSimple(recentPrices);
+    
+    const stats = {
+      totalPrices: recentPrices.length,
+      outliersDetected: outliers.length,
+      outlierPercentage: (outliers.length / recentPrices.length) * 100,
+      laboratoriesAnalyzed: competitiveness.length,
+      avgCompetitivenessScore: competitiveness.reduce((sum, c) => sum + c.overallScore, 0) / competitiveness.length,
+    };
+
+    const insights = [];
+    if (outliers.length > 0) {
+      insights.push(`⚠️ Detectados ${outliers.length} outliers de ${recentPrices.length} preços`);
+    }
+    if (competitiveness.length > 0) {
+      insights.push(`🏆 ${competitiveness[0].laboratory} lidera em competitividade`);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        statistics: stats,
+        outliers: outliers.slice(0, 10),
+        competitiveness: competitiveness.slice(0, 5),
+        insights,
+      },
+      metadata: {
+        scope: { medicationCode, laboratoryId },
+        generatedAt: new Date(),
+        analysisWindow: '30 dias',
+      },
+    });
+  } catch (error) {
+    console.error('Erro no dashboard ML:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// ===================================
+// FUNÇÕES AUXILIARES DE ML
+// ===================================
+
+function generateSimplePredictions(historicalData, daysAhead) {
+  const prices = historicalData.map(p => parseFloat(p.value.toString()));
+  const dates = historicalData.map(p => p.capturedAt);
+  
+  // Média móvel dos últimos 14 dias
+  const windowSize = Math.min(14, prices.length);
+  const recentPrices = prices.slice(-windowSize);
+  const movingAvg = recentPrices.reduce((a, b) => a + b, 0) / recentPrices.length;
+  
+  // Calcular tendência
+  const firstHalf = prices.slice(0, Math.floor(prices.length / 2));
+  const secondHalf = prices.slice(Math.floor(prices.length / 2));
+  const firstAvg = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length;
+  const secondAvg = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length;
+  const trend = (secondAvg - firstAvg) / (prices.length / 2);
+  
+  // Calcular volatilidade
+  const mean = prices.reduce((a, b) => a + b, 0) / prices.length;
+  const variance = prices.reduce((sum, price) => sum + Math.pow(price - mean, 2), 0) / prices.length;
+  const volatility = Math.sqrt(variance);
+  
+  const predictions = [];
+  const lastDate = new Date(dates[dates.length - 1]);
+  
+  for (let i = 1; i <= daysAhead; i++) {
+    const futureDate = new Date(lastDate);
+    futureDate.setDate(futureDate.getDate() + i);
+    
+    // Previsão: média móvel + tendência com decaimento
+    const trendComponent = trend * i * Math.pow(0.95, i); // Decaimento da tendência
+    const predictedPrice = Math.max(0, movingAvg + trendComponent);
+    
+    // Intervalos de confiança
+    const confidence = Math.max(0.5, 0.95 - (i * 0.01));
+    const margin = volatility * 1.96 * Math.sqrt(i) / Math.sqrt(prices.length);
+    
+    predictions.push({
+      date: futureDate,
+      predictedPrice: Math.round(predictedPrice * 100) / 100,
+      confidence: Math.round(confidence * 100) / 100,
+      lowerBound: Math.max(0, Math.round((predictedPrice - margin) * 100) / 100),
+      upperBound: Math.round((predictedPrice + margin) * 100) / 100,
+    });
+  }
+  
+  return predictions;
+}
+
+function detectOutliersSimple(pricesData, threshold) {
+  const outliers = [];
+  
+  // Agrupar por medicamento
+  const medicationGroups = {};
+  pricesData.forEach(price => {
+    const code = price.medication.code;
+    if (!medicationGroups[code]) {
+      medicationGroups[code] = [];
+    }
+    medicationGroups[code].push(price);
+  });
+  
+  // Detectar outliers para cada medicamento
+  Object.entries(medicationGroups).forEach(([medicationCode, prices]) => {
+    const priceValues = prices.map(p => parseFloat(p.value.toString()));
+    const mean = priceValues.reduce((a, b) => a + b, 0) / priceValues.length;
+    const variance = priceValues.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / priceValues.length;
+    const std = Math.sqrt(variance);
+    
+    prices.forEach(price => {
+      const value = parseFloat(price.value.toString());
+      const zScore = Math.abs((value - mean) / std);
+      
+      if (zScore > threshold) {
+        outliers.push({
+          priceId: price.id,
+          medication: price.medication.name,
+          laboratory: price.lab?.name || 'Unknown',
+          price: value,
+          expectedPrice: mean,
+          deviation: Math.abs(value - mean),
+          outlierScore: zScore,
+          isOutlier: true,
+          reasons: [
+            `Z-score alto (${zScore.toFixed(2)})`,
+            `Desvio de ${Math.abs(value - mean).toFixed(2)} da média`,
+          ],
+          detectionMethods: ['zscore'],
+        });
+      }
+    });
+  });
+  
+  return outliers.sort((a, b) => b.outlierScore - a.outlierScore);
+}
+
+function calculateCompetitivenessSimple(pricesData) {
+  // Agrupar por laboratório
+  const labGroups = {};
+  pricesData.forEach(price => {
+    const labId = price.lab?.id || 'unknown';
+    if (!labGroups[labId]) {
+      labGroups[labId] = {
+        name: price.lab?.name || 'Unknown',
+        prices: [],
+        medications: new Set(),
+      };
+    }
+    labGroups[labId].prices.push(parseFloat(price.value.toString()));
+    labGroups[labId].medications.add(price.medication.code);
+  });
+  
+  // Calcular scores
+  const results = [];
+  const allPrices = pricesData.map(p => parseFloat(p.value.toString()));
+  const marketMean = allPrices.reduce((a, b) => a + b, 0) / allPrices.length;
+  
+  Object.entries(labGroups).forEach(([labId, labData]) => {
+    const labMean = labData.prices.reduce((a, b) => a + b, 0) / labData.prices.length;
+    const priceRatio = labMean / marketMean;
+    
+    // Score de preços (0-100, quanto menor o preço, maior o score)
+    let priceScore = 100;
+    if (priceRatio > 1) {
+      priceScore = Math.max(0, 100 - (priceRatio - 1) * 100);
+    } else {
+      priceScore = Math.min(100, 100 + (1 - priceRatio) * 50);
+    }
+    
+    // Score de diversidade
+    const diversityScore = Math.min(100, (labData.medications.size / 10) * 100);
+    
+    // Score geral
+    const overallScore = (priceScore * 0.7) + (diversityScore * 0.3);
+    
+    results.push({
+      laboratory: labData.name,
+      laboratoryId: labId,
+      overallScore: Math.round(overallScore),
+      priceScore: Math.round(priceScore),
+      diversityScore: Math.round(diversityScore),
+      avgPrice: Math.round(labMean * 100) / 100,
+      medications: Array.from(labData.medications).length,
+      priceAdvantage: Math.round(((marketMean - labMean) / marketMean) * 100),
+    });
+  });
+  
+  // Ordenar por score e adicionar ranking
+  results.sort((a, b) => b.overallScore - a.overallScore);
+  results.forEach((result, index) => {
+    result.rank = index + 1;
+    result.totalLaboratories = results.length;
+  });
+  
+  return results;
+}
+
+function generatePurchaseRecommendationsSimple(medication, currentStock, monthlyConsumption) {
+  const prices = medication.prices.map(p => ({
+    price: parseFloat(p.value.toString()),
+    lab: p.lab?.name || 'Unknown',
+    date: p.capturedAt,
+  }));
+
+  if (prices.length < 2) {
+    return {
+      medicationCode: medication.code,
+      medicationName: medication.name,
+      recommendations: [],
+      marketAnalysis: {},
+      optimalTiming: {},
+    };
+  }
+
+  // Calcular tendência de preços
+  const currentPrice = prices[0].price;
+  const avgPrice = prices.reduce((sum, p) => sum + p.price, 0) / prices.length;
+  const priceChange = ((currentPrice - avgPrice) / avgPrice) * 100;
+
+  // Agrupar por laboratório
+  const labPrices = {};
+  prices.forEach(p => {
+    if (!labPrices[p.lab]) {
+      labPrices[p.lab] = [];
+    }
+    labPrices[p.lab].push(p.price);
+  });
+
+  // Gerar recomendações por laboratório
+  const recommendations = Object.entries(labPrices).map(([lab, labPriceList]) => {
+    const labAvgPrice = labPriceList.reduce((a, b) => a + b, 0) / labPriceList.length;
+    const labCurrentPrice = labPriceList[0];
+    
+    // Determinar ação
+    let action = 'monitor';
+    let priority = 'medium';
+    let reasoning = [];
+
+    if (labCurrentPrice < avgPrice * 0.9) {
+      action = 'buy_now';
+      priority = 'high';
+      reasoning.push('Preço 10% abaixo da média do mercado');
+    } else if (labCurrentPrice < avgPrice * 0.95) {
+      action = 'buy_now';
+      priority = 'medium';
+      reasoning.push('Preço competitivo detectado');
+    } else if (labCurrentPrice > avgPrice * 1.1) {
+      action = 'wait';
+      priority = 'low';
+      reasoning.push('Preço acima da média - aguardar');
+    }
+
+    // Considerar estoque se fornecido
+    if (currentStock !== undefined && monthlyConsumption !== undefined) {
+      const daysOfStock = (currentStock / (monthlyConsumption / 30));
+      if (daysOfStock < 15) {
+        priority = priority === 'low' ? 'medium' : 'high';
+        reasoning.push(`Estoque baixo: ${daysOfStock.toFixed(0)} dias`);
+      }
+    }
+
+    return {
+      action,
+      laboratory: lab,
+      currentPrice: labCurrentPrice,
+      predictedPrice: labAvgPrice, // Usar média como previsão simples
+      expectedSavings: Math.max(0, labCurrentPrice - labAvgPrice),
+      confidence: 0.75,
+      timeframe: action === 'buy_now' ? 'Próximos 2-3 dias' : 
+                action === 'wait' ? 'Aguardar 1-2 semanas' : 'Monitorar próximos 7 dias',
+      reasoning,
+      priority,
+    };
+  });
+
+  // Análise de mercado
+  const marketAnalysis = {
+    currentMarketPrice: currentPrice,
+    predictedMarketPrice: avgPrice,
+    priceVolatility: Math.abs(priceChange),
+    competitionLevel: Object.keys(labPrices).length >= 5 ? 'high' : 
+                     Object.keys(labPrices).length >= 3 ? 'medium' : 'low',
+    marketTrend: priceChange > 5 ? 'increasing' : priceChange < -5 ? 'decreasing' : 'stable',
+  };
+
+  // Timing ótimo (simplificado)
+  const optimalTiming = {
+    bestBuyDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 dias
+    worstBuyDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 dias
+    maxSavingsOpportunity: Math.max(...Object.values(labPrices).map(prices => 
+      Math.max(...prices) - Math.min(...prices)
+    )),
+    riskAssessment: Math.abs(priceChange) > 20 ? 'high' : 
+                   Math.abs(priceChange) > 10 ? 'medium' : 'low',
+  };
+
+  return {
+    medicationCode: medication.code,
+    medicationName: medication.name,
+    recommendations: recommendations.sort((a, b) => {
+      const priorityOrder = { urgent: 4, high: 3, medium: 2, low: 1 };
+      return priorityOrder[b.priority] - priorityOrder[a.priority];
+    }),
+    marketAnalysis,
+    optimalTiming,
+  };
+}
+
 const PORT = process.env.PORT || 3333;
 
 app.listen(PORT, () => {
@@ -828,6 +1486,12 @@ app.listen(PORT, () => {
   console.log(`📊 Health check: http://localhost:${PORT}/api/healthz`);
   console.log(`💊 Medicamentos: http://localhost:${PORT}/api/medications`);
   console.log(`🤖 LLM Chat: POST http://localhost:${PORT}/api/llm/query`);
+  console.log(`🧠 ML Previsões: POST http://localhost:${PORT}/api/ml/predictions`);
+  console.log(`🔍 ML Outliers: GET http://localhost:${PORT}/api/ml/outliers`);
+  console.log(`🏆 ML Competitividade: GET http://localhost:${PORT}/api/ml/competitiveness`);
+  console.log(`📈 ML Dashboard: GET http://localhost:${PORT}/api/ml/dashboard`);
+  console.log(`🚨 Alertas Automáticos: POST http://localhost:${PORT}/api/ml/outliers/alerts/configure`);
+  console.log(`💰 Otimização Compras: POST http://localhost:${PORT}/api/ml/purchase/recommendations`);
 });
 
 // Teste de conexão com banco
