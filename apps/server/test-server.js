@@ -1479,6 +1479,175 @@ function generatePurchaseRecommendationsSimple(medication, currentStock, monthly
   };
 }
 
+// ===================================
+// APIS DE VALIDAÇÃO E CORREÇÃO DE DADOS
+// ===================================
+
+// Validar qualidade dos dados
+app.get('/api/data/validate', async (req, res) => {
+  try {
+    console.log('🔍 Iniciando validação de dados...');
+
+    // Estatísticas gerais
+    const totalMedications = await prisma.medication.count();
+    const totalLabs = await prisma.lab.count(); 
+    const totalPrices = await prisma.price.count();
+
+    // Medicamentos oncológicos com preços suspeitos
+    const suspiciousOncologics = await prisma.medication.findMany({
+      where: {
+        category: { contains: 'Oncológico' }
+      },
+      include: {
+        prices: {
+          take: 1,
+          orderBy: { capturedAt: 'desc' },
+          include: { lab: true }
+        }
+      }
+    });
+
+    const lowPriceOncologics = suspiciousOncologics.filter(med => 
+      med.prices[0] && parseFloat(med.prices[0].value.toString()) < 500
+    ).map(med => ({
+      name: med.name,
+      code: med.code,
+      price: parseFloat(med.prices[0].value.toString()),
+      laboratory: med.prices[0].lab?.name,
+      category: med.category
+    }));
+
+    // Medicamentos sem princípio ativo
+    const withoutActiveIngredient = await prisma.medication.count({
+      where: {
+        activeIngredient: null
+      }
+    });
+
+    // Laboratórios principais
+    const mainLabs = ['Roche', 'Novartis', 'Bayer', 'AbbVie', 'Janssen', 'MSD', 'Bristol Myers Squibb'];
+    const labStatus = {};
+
+    for (const labName of mainLabs) {
+      const lab = await prisma.lab.findUnique({
+        where: { name: labName },
+        include: { _count: { select: { prices: true } } }
+      });
+      
+      labStatus[labName] = lab ? {
+        found: true,
+        pricesCount: lab._count.prices
+      } : { found: false };
+    }
+
+    const insights = [];
+    if (lowPriceOncologics.length > 0) {
+      insights.push(`⚠️ ${lowPriceOncologics.length} medicamentos oncológicos com preços suspeitos`);
+    }
+    if (withoutActiveIngredient > 0) {
+      insights.push(`📝 ${withoutActiveIngredient} medicamentos sem princípio ativo`);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        statistics: {
+          totalMedications,
+          totalLabs,
+          totalPrices,
+          avgPricesPerMedication: Math.round(totalPrices / totalMedications)
+        },
+        dataQuality: {
+          suspiciousOncologics: lowPriceOncologics.length,
+          missingActiveIngredients: withoutActiveIngredient,
+          mainLabsFound: mainLabs.filter(lab => labStatus[lab].found).length
+        },
+        issues: {
+          lowPriceOncologics: lowPriceOncologics.slice(0, 10),
+          labStatus
+        },
+        insights
+      }
+    });
+
+  } catch (error) {
+    console.error('Erro na validação:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Corrigir dados específicos
+app.post('/api/data/fix', async (req, res) => {
+  try {
+    const { medicationCode, correctLaboratory, correctPrice, correctCategory, correctActiveIngredient } = req.body;
+
+    if (!medicationCode) {
+      return res.status(400).json({ error: 'Código do medicamento é obrigatório' });
+    }
+
+    const medication = await prisma.medication.findUnique({
+      where: { code: medicationCode },
+      include: { prices: { take: 1, orderBy: { capturedAt: 'desc' }, include: { lab: true } } }
+    });
+
+    if (!medication) {
+      return res.status(404).json({ error: 'Medicamento não encontrado' });
+    }
+
+    const corrections = [];
+
+    // Corrigir laboratório e preço
+    if (correctLaboratory) {
+      const lab = await prisma.lab.upsert({
+        where: { name: correctLaboratory },
+        update: {},
+        create: { name: correctLaboratory }
+      });
+
+      if (correctPrice) {
+        await prisma.price.create({
+          data: {
+            medicationId: medication.id,
+            labId: lab.id,
+            value: correctPrice.toString(),
+            source: 'ManualCorrection',
+            capturedAt: new Date()
+          }
+        });
+        corrections.push(`Preço corrigido: R$ ${correctPrice} (${correctLaboratory})`);
+      }
+    }
+
+    // Corrigir informações do medicamento
+    const updateData = {};
+    if (correctCategory) {
+      updateData.category = correctCategory;
+      corrections.push(`Categoria: ${correctCategory}`);
+    }
+    if (correctActiveIngredient) {
+      updateData.activeIngredient = correctActiveIngredient;
+      corrections.push(`Princípio ativo: ${correctActiveIngredient}`);
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      await prisma.medication.update({
+        where: { id: medication.id },
+        data: updateData
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Correções aplicadas com sucesso',
+      data: { medicationCode, corrections }
+    });
+
+  } catch (error) {
+    console.error('Erro na correção:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
 const PORT = process.env.PORT || 3333;
 
 app.listen(PORT, () => {
@@ -1492,6 +1661,8 @@ app.listen(PORT, () => {
   console.log(`📈 ML Dashboard: GET http://localhost:${PORT}/api/ml/dashboard`);
   console.log(`🚨 Alertas Automáticos: POST http://localhost:${PORT}/api/ml/outliers/alerts/configure`);
   console.log(`💰 Otimização Compras: POST http://localhost:${PORT}/api/ml/purchase/recommendations`);
+  console.log(`🔍 Validação de Dados: GET http://localhost:${PORT}/api/data/validate`);
+  console.log(`🔧 Correção de Dados: POST http://localhost:${PORT}/api/data/fix`);
 });
 
 // Teste de conexão com banco

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import PurchaseOptimizer from './purchase-optimizer';
 
@@ -163,61 +163,103 @@ export default function MLDashboard({ medicationCode, laboratoryId }: MLDashboar
         <p className="opacity-90">Previsões, outliers e análise de competitividade</p>
       </div>
 
-      {/* Controles */}
-      <Card className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Medicamento</label>
-            <select
-              value={selectedMedication}
-              onChange={(e) => setSelectedMedication(e.target.value)}
-              className="w-full p-2 border rounded-lg"
-            >
-              <option value="SUS-PARACETAMOL">Paracetamol</option>
-              <option value="SUS-DIPIRONA">Dipirona</option>
-              <option value="SUS-IBUPROFENO">Ibuprofeno</option>
-              <option value="SUS-LOSARTANA">Losartana</option>
-              <option value="SUS-ENALAPRIL">Enalapril</option>
-            </select>
+      {/* Controles com Layout Padronizado */}
+      <Card className="raymed-card mb-6">
+        <CardHeader className="raymed-card-header">
+          <CardTitle>🔮 Configurar Análises de Machine Learning</CardTitle>
+          <CardDescription>
+            Configure os parâmetros abaixo para gerar previsões e análises personalizadas
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="form-label">💊 Medicamento:</label>
+              <select
+                value={selectedMedication}
+                onChange={(e) => setSelectedMedication(e.target.value)}
+                className="form-select"
+              >
+                <option value="">Selecione um medicamento</option>
+                <option value="PARACETAMOL-500MG">💊 Paracetamol 500mg</option>
+                <option value="DIPIRONA-500MG">💊 Dipirona 500mg</option>
+                <option value="IBUPROFENO-400MG">💊 Ibuprofeno 400mg</option>
+                <option value="ADEMPAS-1-5MG">🫀 Adempas 1,5mg (Bayer)</option>
+                <option value="HERCEPTIN-440MG">🎗️ Herceptin 440mg (Roche)</option>
+                <option value="KEYTRUDA-100MG">🧬 Keytruda 100mg (MSD)</option>
+                <option value="GLIVEC-400MG">🩸 Glivec 400mg (Novartis)</option>
+                <option value="AVASTIN-400MG">🎯 Avastin 400mg (Roche)</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="form-label">📅 Período de Previsão:</label>
+              <select
+                value={predictionDays}
+                onChange={(e) => setPredictionDays(Number(e.target.value))}
+                className="form-select"
+              >
+                <option value={7}>📅 7 dias</option>
+                <option value={14}>📅 14 dias</option>
+                <option value={30}>📅 30 dias (Padrão)</option>
+                <option value={60}>📅 60 dias</option>
+                <option value={90}>📅 90 dias</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="form-label">🎯 Sensibilidade Outliers:</label>
+              <select
+                value={outlierThreshold}
+                onChange={(e) => setOutlierThreshold(Number(e.target.value))}
+                className="form-select"
+              >
+                <option value={1.5}>🔍 1.5 (Muito Sensível)</option>
+                <option value={2.0}>🔍 2.0 (Sensível)</option>
+                <option value={2.5}>🔍 2.5 (Padrão)</option>
+                <option value={3.0}>🔍 3.0 (Conservador)</option>
+                <option value={3.5}>🔍 3.5 (Muito Conservador)</option>
+              </select>
+            </div>
+            
+            <div className="flex items-end">
+              <button
+                onClick={generatePredictions}
+                disabled={!selectedMedication}
+                className="btn-primary w-full"
+              >
+                🔮 Gerar Análises
+              </button>
+            </div>
           </div>
           
-          <div>
-            <label className="block text-sm font-medium mb-1">Dias de Previsão</label>
-            <select
-              value={predictionDays}
-              onChange={(e) => setPredictionDays(Number(e.target.value))}
-              className="w-full p-2 border rounded-lg"
-            >
-              <option value={7}>7 dias</option>
-              <option value={14}>14 dias</option>
-              <option value={30}>30 dias</option>
-              <option value={60}>60 dias</option>
-            </select>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-1">Threshold Outliers</label>
-            <select
-              value={outlierThreshold}
-              onChange={(e) => setOutlierThreshold(Number(e.target.value))}
-              className="w-full p-2 border rounded-lg"
-            >
-              <option value={1.5}>1.5 (Sensível)</option>
-              <option value={2.0}>2.0 (Moderado)</option>
-              <option value={2.5}>2.5 (Padrão)</option>
-              <option value={3.0}>3.0 (Conservador)</option>
-            </select>
-          </div>
-          
-          <div className="flex items-end">
-            <button
-              onClick={generatePredictions}
-              className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              🔮 Gerar Previsões
-            </button>
-          </div>
-        </div>
+          {/* Filtros ativos */}
+          {selectedMedication && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="text-sm text-gray-600">Configuração ativa:</span>
+              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                💊 {selectedMedication.replace('-', ' ').toLowerCase()}
+                <button onClick={() => setSelectedMedication('')} className="ml-1 text-blue-600">×</button>
+              </span>
+              <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">
+                📅 {predictionDays} dias
+              </span>
+              <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
+                🎯 Threshold {outlierThreshold}
+              </span>
+              <button 
+                onClick={() => {
+                  setSelectedMedication('');
+                  setPredictionDays(30);
+                  setOutlierThreshold(2.5);
+                }}
+                className="text-xs text-gray-500 hover:text-gray-700"
+              >
+                🗑️ Limpar configuração
+              </button>
+            </div>
+          )}
+        </CardContent>
       </Card>
 
       {/* Previsões */}

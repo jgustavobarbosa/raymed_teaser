@@ -228,68 +228,116 @@ export default function PurchaseOptimizer() {
         </div>
       )}
 
-      {/* Analisador Individual */}
-      <Card>
-        <CardHeader>
+      {/* Analisador Individual com Layout Padronizado */}
+      <Card className="raymed-card">
+        <CardHeader className="raymed-card-header">
           <CardTitle>🔍 Análise Individual de Medicamento</CardTitle>
           <CardDescription>
-            Obtenha recomendações específicas considerando seu estoque atual
+            Configure estoque e consumo para obter recomendações personalizadas de compra
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Medicamento</label>
+              <label className="form-label">💊 Medicamento:</label>
               <select
                 value={selectedMedication}
                 onChange={(e) => setSelectedMedication(e.target.value)}
-                className="w-full p-2 border rounded-lg"
+                className="form-select"
               >
-                <option value="PARACETAMOL-500MG">Paracetamol 500mg</option>
-                <option value="DIPIRONA-500MG">Dipirona 500mg</option>
-                <option value="IBUPROFENO-400MG">Ibuprofeno 400mg</option>
-                <option value="AMOXICILINA-500MG">Amoxicilina 500mg</option>
-                <option value="METFORMINA-850MG">Metformina 850mg</option>
+                <option value="">Selecione um medicamento</option>
+                <option value="PARACETAMOL-500MG">💊 Paracetamol 500mg</option>
+                <option value="DIPIRONA-500MG">💊 Dipirona 500mg</option>
+                <option value="IBUPROFENO-400MG">💊 Ibuprofeno 400mg</option>
+                <option value="ADEMPAS-1-5MG">🫀 Adempas 1,5mg (Alto Custo)</option>
+                <option value="HERCEPTIN-440MG">🎗️ Herceptin 440mg (Oncológico)</option>
+                <option value="KEYTRUDA-100MG">🧬 Keytruda 100mg (Imunoterapia)</option>
+                <option value="AMOXICILINA-500MG">🦠 Amoxicilina 500mg</option>
+                <option value="METFORMINA-850MG">💊 Metformina 850mg</option>
               </select>
             </div>
             
             <div>
-              <label className="block text-sm font-medium mb-1">Estoque Atual</label>
+              <label className="form-label">📦 Estoque Atual:</label>
               <input
                 type="number"
                 value={currentStock}
                 onChange={(e) => setCurrentStock(Number(e.target.value))}
-                className="w-full p-2 border rounded-lg"
-                placeholder="Unidades"
+                className="form-input"
+                placeholder="Ex: 100 unidades"
+                min="0"
               />
             </div>
             
             <div>
-              <label className="block text-sm font-medium mb-1">Consumo Mensal</label>
+              <label className="form-label">📊 Consumo Mensal:</label>
               <input
                 type="number"
                 value={monthlyConsumption}
                 onChange={(e) => setMonthlyConsumption(Number(e.target.value))}
-                className="w-full p-2 border rounded-lg"
-                placeholder="Unidades/mês"
+                className="form-input"
+                placeholder="Ex: 50 unidades/mês"
+                min="1"
               />
             </div>
             
             <div className="flex items-end">
               <Button 
                 onClick={generateRecommendations}
-                disabled={loading}
-                className="w-full"
+                disabled={loading || !selectedMedication}
+                className="btn-primary w-full"
               >
-                {loading ? 'Analisando...' : '🔮 Analisar'}
+                {loading ? '⏳ Analisando...' : '🔮 Analisar Compra'}
               </Button>
             </div>
           </div>
+          
+          {/* Configuração ativa */}
+          {(selectedMedication || currentStock > 0 || monthlyConsumption > 0) && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="text-sm text-gray-600">Configuração atual:</span>
+              {selectedMedication && (
+                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                  💊 {selectedMedication.replace('-', ' ').toLowerCase()}
+                  <button onClick={() => setSelectedMedication('')} className="ml-1 text-blue-600">×</button>
+                </span>
+              )}
+              {currentStock > 0 && (
+                <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
+                  📦 {currentStock} unidades
+                </span>
+              )}
+              {monthlyConsumption > 0 && (
+                <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">
+                  📊 {monthlyConsumption}/mês
+                </span>
+              )}
+              <button 
+                onClick={() => {
+                  setSelectedMedication('');
+                  setCurrentStock(100);
+                  setMonthlyConsumption(50);
+                }}
+                className="text-xs text-gray-500 hover:text-gray-700"
+              >
+                🗑️ Limpar configuração
+              </button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-          {/* Recomendações */}
-          {recommendations.length > 0 && (
+      {/* Recomendações */}
+      {recommendations.length > 0 && (
+        <Card className="raymed-card">
+          <CardHeader className="raymed-card-header">
+            <CardTitle>📋 Recomendações por Laboratório</CardTitle>
+            <CardDescription>
+              Análise detalhada com ações recomendadas para cada laboratório
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4">
             <div className="space-y-4">
-              <h3 className="font-semibold text-lg">📋 Recomendações por Laboratório</h3>
               
               {recommendations.map((rec, index) => (
                 <div key={index} className={`p-4 rounded-lg border-2 ${getActionColor(rec.action)}`}>
@@ -355,22 +403,22 @@ export default function PurchaseOptimizer() {
                 </div>
               ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Calculadora de Estoque */}
-      <Card>
-        <CardHeader>
+      <Card className="raymed-card">
+        <CardHeader className="raymed-card-header">
           <CardTitle className="flex items-center gap-2">
             <Package className="h-5 w-5 text-purple-600" />
-            Calculadora de Estoque
+            📊 Calculadora de Estoque
           </CardTitle>
           <CardDescription>
-            Análise baseada no estoque e consumo informados
+            Análise baseada no estoque e consumo informados acima
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4">
           {currentStock > 0 && monthlyConsumption > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-blue-50 p-4 rounded-lg text-center">
@@ -414,11 +462,14 @@ export default function PurchaseOptimizer() {
       </Card>
 
       {/* Guia de Ações */}
-      <Card>
-        <CardHeader>
+      <Card className="raymed-card">
+        <CardHeader className="raymed-card-header">
           <CardTitle>📚 Guia de Ações Recomendadas</CardTitle>
+          <CardDescription>
+            Entenda o significado de cada recomendação do sistema
+          </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-3">
               <div className="flex items-center gap-3 p-3 bg-red-50 rounded">
