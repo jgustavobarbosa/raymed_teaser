@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
-import { Navigation } from '@/components/navigation';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -62,10 +61,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <div className="min-h-screen bg-background">
-            <Navigation />
-            <main className="container mx-auto px-4 py-6">
-              {children}
-            </main>
+            {children}
           </div>
           <Toaster />
         </ThemeProvider>

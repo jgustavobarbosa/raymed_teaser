@@ -4,12 +4,43 @@ import { createLLMClient, MedicationQueryProcessor } from '@raymed/shared';
 
 @Injectable()
 export class LlmService {
-  private llmClient = createLLMClient();
-  private queryProcessor = new MedicationQueryProcessor(this.llmClient);
+  private llmClient: any = null;
+  private queryProcessor: any = null;
+  private isLLMAvailable = false;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {
+    try {
+      // Verificar se temos as chaves necessárias
+      const provider = process.env.LLM_PROVIDER;
+      const hasApiKey = process.env.OPENAI_API_KEY || 
+                       process.env.ANTHROPIC_API_KEY || 
+                       process.env.GOOGLE_API_KEY;
+
+      if (provider && hasApiKey) {
+        this.llmClient = createLLMClient();
+        this.queryProcessor = new MedicationQueryProcessor(this.llmClient);
+        this.isLLMAvailable = true;
+        console.log('✅ LLM Client inicializado com sucesso');
+      } else {
+        console.warn('⚠️ LLM indisponível - sem API key configurada');
+      }
+    } catch (error) {
+      console.warn('⚠️ Falha ao inicializar LLM:', error instanceof Error ? error.message : 'Erro desconhecido');
+      this.isLLMAvailable = false;
+    }
+  }
 
   async processQuery(question: string) {
+    // Verificar se LLM está disponível
+    if (!this.isLLMAvailable) {
+      return {
+        question,
+        answer: 'LLM indisponível em dev (sem chave)',
+        sources: [],
+        confidence: 0,
+      };
+    }
+
     try {
       // Obter contexto dos medicamentos e labs disponíveis
       const [medications, labs] = await Promise.all([

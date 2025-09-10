@@ -11,12 +11,9 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
 
   // Configurar CORS
+  const webOrigin = configService.get('WEB_ORIGIN', 'http://localhost:3000');
   app.enableCors({
-    origin: [
-      'http://localhost:3000',
-      'https://raymed.vercel.app',
-      configService.get('FRONTEND_URL'),
-    ].filter(Boolean),
+    origin: webOrigin.split(','),
     credentials: true,
   });
 
@@ -32,7 +29,7 @@ async function bootstrap() {
   // Prefixo global para API
   app.setGlobalPrefix('api');
 
-  const port = configService.get('PORT', 3001);
+  const port = configService.get('PORT', 3333);
   
   await app.listen(port);
   

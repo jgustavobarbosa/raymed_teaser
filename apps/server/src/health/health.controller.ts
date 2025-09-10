@@ -1,12 +1,17 @@
 import { Controller, Get } from '@nestjs/common';
 import { HealthService } from './health.service';
 
-@Controller('health')
+@Controller()
 export class HealthController {
   constructor(private readonly healthService: HealthService) {}
 
-  @Get()
+  @Get('health')
   async getHealth() {
+    return this.healthService.getHealthStatus();
+  }
+
+  @Get('healthz')
+  async getHealthZ() {
     return this.healthService.getHealthStatus();
   }
 

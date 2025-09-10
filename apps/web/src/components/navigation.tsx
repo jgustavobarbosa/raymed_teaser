@@ -16,12 +16,10 @@ import {
 
 const navigation = [
   { name: 'Home', href: '/', icon: Home },
-  { name: 'Medicamentos', href: '/medicamentos', icon: Search },
-  { name: 'Laboratórios', href: '/laboratorios', icon: Building2 },
-  { name: 'Minhas Inscrições', href: '/inscricoes', icon: Settings },
-  { name: 'Alertas', href: '/alertas', icon: Bell },
-  { name: 'Chat', href: '/chat', icon: MessageSquare },
-  { name: 'Admin', href: '/admin', icon: Shield },
+  { name: 'Medicamentos', href: '/#medicamentos', icon: Search },
+  { name: 'Laboratórios', href: '/#laboratorios', icon: Building2 },
+  { name: 'Alertas', href: '/#alertas', icon: Bell },
+  { name: 'Chat', href: '/#chat', icon: MessageSquare },
 ];
 
 export function Navigation() {

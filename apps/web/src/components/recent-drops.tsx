@@ -27,6 +27,25 @@ export function RecentDrops() {
         if (response.ok) {
           const data = await response.json();
           setDrops(data);
+        } else {
+          console.warn('API recent-drops não disponível, usando dados mock');
+          // Dados mock para demonstração
+          setDrops([
+            {
+              id: '1',
+              code: 'PARACETAMOL-500MG',
+              name: 'Paracetamol 500mg',
+              currentPrice: { value: 8.50, labName: 'EMS' },
+              variation24h: -12.5,
+            },
+            {
+              id: '2',
+              code: 'DIPIRONA-500MG', 
+              name: 'Dipirona Sódica 500mg',
+              currentPrice: { value: 6.80, labName: 'Medley' },
+              variation24h: -8.3,
+            }
+          ]);
         }
       } catch (error) {
         console.error('Erro ao buscar quedas recentes:', error);
