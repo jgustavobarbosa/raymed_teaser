@@ -15,7 +15,7 @@ Sistema profissional completo de monitoramento, alertas, Machine Learning e aná
 ## 🚀 **Funcionalidades Principais**
 
 ### 💊 **Base Farmacológica Completa**
-- **131 medicamentos** especializados (oncológicos, imunobiológicos, básicos)
+- **832 medicamentos** especializados (oncológicos, imunobiológicos, básicos)
 - **Dados farmacológicos** completos (indicações, mecanismos, categorias)
 - **Rituximabe, Trastuzumabe, Adalimumabe** e outros imunobiológicos
 - **Medicamentos básicos** (Paracetamol, Dipirona, Ibuprofeno)
@@ -124,7 +124,7 @@ cd apps/server && npx prisma generate
 # Aplicar migrations
 npx prisma migrate deploy
 
-# Popular com dados (131 medicamentos + 35 laboratórios)
+# Popular com dados (832 medicamentos + 35 laboratórios)
 pnpm db:seed
 ```
 
