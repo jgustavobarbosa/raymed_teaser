@@ -36,9 +36,12 @@ interface PurchaseDashboardData {
 }
 
 export default function PurchaseOptimizer() {
-  const [selectedMedication, setSelectedMedication] = useState('PARACETAMOL-500MG');
+  const [selectedMedication, setSelectedMedication] = useState('');
   const [currentStock, setCurrentStock] = useState(100);
   const [monthlyConsumption, setMonthlyConsumption] = useState(50);
+  const [desiredQuantity, setDesiredQuantity] = useState(100);
+  const [leadTimeDays, setLeadTimeDays] = useState(7);
+  const [safetyStockDays, setSafetyStockDays] = useState(15);
   const [recommendations, setRecommendations] = useState<PurchaseRecommendation[]>([]);
   const [dashboardData, setDashboardData] = useState<PurchaseDashboardData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -74,6 +77,9 @@ export default function PurchaseOptimizer() {
           medicationCode: selectedMedication,
           currentStock,
           monthlyConsumption,
+          desiredQuantity,
+          leadTimeDays,
+          safetyStockDays,
         }),
       });
       
@@ -237,7 +243,8 @@ export default function PurchaseOptimizer() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          {/* Primeira linha - Medicamento e Consumo */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
               <label className="form-label">💊 Medicamento:</label>
               <select
@@ -258,6 +265,18 @@ export default function PurchaseOptimizer() {
             </div>
             
             <div>
+              <label className="form-label">📊 Consumo Mensal:</label>
+              <input
+                type="number"
+                value={monthlyConsumption}
+                onChange={(e) => setMonthlyConsumption(Number(e.target.value))}
+                className="form-input"
+                placeholder="Ex: 50 unidades/mês"
+                min="1"
+              />
+            </div>
+            
+            <div>
               <label className="form-label">📦 Estoque Atual:</label>
               <input
                 type="number"
@@ -268,17 +287,48 @@ export default function PurchaseOptimizer() {
                 min="0"
               />
             </div>
-            
+          </div>
+          
+          {/* Segunda linha - Parâmetros de Compra */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div>
-              <label className="form-label">📊 Consumo Mensal:</label>
+              <label className="form-label">🛒 Quantidade Desejada:</label>
               <input
                 type="number"
-                value={monthlyConsumption}
-                onChange={(e) => setMonthlyConsumption(Number(e.target.value))}
+                value={desiredQuantity}
+                onChange={(e) => setDesiredQuantity(Number(e.target.value))}
                 className="form-input"
-                placeholder="Ex: 50 unidades/mês"
+                placeholder="Ex: 100 unidades"
                 min="1"
               />
+            </div>
+            
+            <div>
+              <label className="form-label">📅 Lead Time:</label>
+              <select
+                value={leadTimeDays}
+                onChange={(e) => setLeadTimeDays(Number(e.target.value))}
+                className="form-select"
+              >
+                <option value={3}>3 dias (Urgente)</option>
+                <option value={7}>7 dias (Padrão)</option>
+                <option value={14}>14 dias (Normal)</option>
+                <option value={21}>21 dias (Importação)</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="form-label">🛡️ Estoque de Segurança:</label>
+              <select
+                value={safetyStockDays}
+                onChange={(e) => setSafetyStockDays(Number(e.target.value))}
+                className="form-select"
+              >
+                <option value={7}>7 dias (Baixo)</option>
+                <option value={15}>15 dias (Padrão)</option>
+                <option value={30}>30 dias (Alto)</option>
+                <option value={45}>45 dias (Crítico)</option>
+              </select>
             </div>
             
             <div className="flex items-end">
@@ -293,30 +343,33 @@ export default function PurchaseOptimizer() {
           </div>
           
           {/* Configuração ativa */}
-          {(selectedMedication || currentStock > 0 || monthlyConsumption > 0) && (
+          {selectedMedication && (
             <div className="mt-4 flex flex-wrap gap-2">
               <span className="text-sm text-gray-600">Configuração atual:</span>
-              {selectedMedication && (
-                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
-                  💊 {selectedMedication.replace('-', ' ').toLowerCase()}
-                  <button onClick={() => setSelectedMedication('')} className="ml-1 text-blue-600">×</button>
-                </span>
-              )}
-              {currentStock > 0 && (
-                <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
-                  📦 {currentStock} unidades
-                </span>
-              )}
-              {monthlyConsumption > 0 && (
-                <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">
-                  📊 {monthlyConsumption}/mês
-                </span>
-              )}
+              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                💊 {selectedMedication.replace('-', ' ').toLowerCase()}
+                <button onClick={() => setSelectedMedication('')} className="ml-1 text-blue-600">×</button>
+              </span>
+              <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
+                📦 Estoque: {currentStock} un
+              </span>
+              <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">
+                📊 Consumo: {monthlyConsumption}/mês ({(monthlyConsumption/30).toFixed(1)}/dia)
+              </span>
+              <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs">
+                🛒 Comprar: {desiredQuantity} un
+              </span>
+              <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs">
+                📅 Lead: {leadTimeDays}d | Segurança: {safetyStockDays}d
+              </span>
               <button 
                 onClick={() => {
                   setSelectedMedication('');
                   setCurrentStock(100);
                   setMonthlyConsumption(50);
+                  setDesiredQuantity(100);
+                  setLeadTimeDays(7);
+                  setSafetyStockDays(15);
                 }}
                 className="text-xs text-gray-500 hover:text-gray-700"
               >
@@ -420,36 +473,78 @@ export default function PurchaseOptimizer() {
         </CardHeader>
         <CardContent className="p-4">
           {currentStock > 0 && monthlyConsumption > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-blue-50 p-4 rounded-lg text-center">
-                <div className="text-2xl font-bold text-blue-600">
-                  {Math.round((currentStock / (monthlyConsumption / 30)))}
+            <div className="space-y-4">
+              {/* Primeira linha - Métricas básicas */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-blue-50 p-4 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {Math.round((currentStock / (monthlyConsumption / 30)))}
+                  </div>
+                  <div className="text-sm text-blue-700">Dias de Estoque</div>
+                  <div className="text-xs text-blue-600">
+                    {(monthlyConsumption / 30).toFixed(1)}/dia consumo
+                  </div>
                 </div>
-                <div className="text-sm text-blue-700">Dias de Estoque</div>
+                
+                <div className="bg-green-50 p-4 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    {Math.round((monthlyConsumption / 30) * (leadTimeDays + safetyStockDays))}
+                  </div>
+                  <div className="text-sm text-green-700">Ponto de Reposição</div>
+                  <div className="text-xs text-green-600">
+                    {leadTimeDays}d lead + {safetyStockDays}d segurança
+                  </div>
+                </div>
+                
+                <div className="bg-orange-50 p-4 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-orange-600">
+                    {Math.round((monthlyConsumption / 30) * 45)}
+                  </div>
+                  <div className="text-sm text-orange-700">Estoque Ideal</div>
+                  <div className="text-xs text-orange-600">45 dias (1.5 meses)</div>
+                </div>
+                
+                <div className="bg-purple-50 p-4 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {currentStock < (monthlyConsumption / 30) * leadTimeDays ? 'CRÍTICO' :
+                     currentStock < (monthlyConsumption / 30) * (leadTimeDays + safetyStockDays) ? 'BAIXO' :
+                     currentStock > (monthlyConsumption / 30) * 60 ? 'EXCESSO' : 'NORMAL'}
+                  </div>
+                  <div className="text-sm text-purple-700">Status do Estoque</div>
+                </div>
               </div>
               
-              <div className="bg-green-50 p-4 rounded-lg text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  {Math.round(monthlyConsumption * 1.5)}
+              {/* Segunda linha - Cálculos de compra */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-indigo-50 p-4 rounded-lg">
+                  <div className="text-lg font-bold text-indigo-600">
+                    R$ {((desiredQuantity * 100) / monthlyConsumption * (monthlyConsumption / 30)).toFixed(2)}
+                  </div>
+                  <div className="text-sm text-indigo-700">Custo Estimado Total</div>
+                  <div className="text-xs text-indigo-600">
+                    {desiredQuantity} unidades × preço médio
+                  </div>
                 </div>
-                <div className="text-sm text-green-700">Estoque Recomendado</div>
-                <div className="text-xs text-green-600">1.5 meses</div>
-              </div>
-              
-              <div className="bg-orange-50 p-4 rounded-lg text-center">
-                <div className="text-2xl font-bold text-orange-600">
-                  {Math.round(monthlyConsumption / 2)}
+                
+                <div className="bg-teal-50 p-4 rounded-lg">
+                  <div className="text-lg font-bold text-teal-600">
+                    {Math.round(desiredQuantity / (monthlyConsumption / 30))}
+                  </div>
+                  <div className="text-sm text-teal-700">Ciclo de Compra</div>
+                  <div className="text-xs text-teal-600">
+                    dias de duração
+                  </div>
                 </div>
-                <div className="text-sm text-orange-700">Ponto de Reposição</div>
-                <div className="text-xs text-orange-600">15 dias</div>
-              </div>
-              
-              <div className="bg-purple-50 p-4 rounded-lg text-center">
-                <div className="text-2xl font-bold text-purple-600">
-                  {currentStock < (monthlyConsumption / 2) ? 'ALTO' : 
-                   currentStock < monthlyConsumption ? 'MÉDIO' : 'BAIXO'}
+                
+                <div className="bg-pink-50 p-4 rounded-lg">
+                  <div className="text-lg font-bold text-pink-600">
+                    {Math.round(Math.max(0, (monthlyConsumption / 30) * (leadTimeDays + safetyStockDays) - currentStock))}
+                  </div>
+                  <div className="text-sm text-pink-700">Quantidade Mínima</div>
+                  <div className="text-xs text-pink-600">
+                    para atingir ponto de reposição
+                  </div>
                 </div>
-                <div className="text-sm text-purple-700">Risco de Ruptura</div>
               </div>
             </div>
           ) : (

@@ -2473,7 +2473,10 @@ function identifyQueryTypeEnhanced(query) {
     comparison: [
       /(?:compare|comparação|versus|vs).*(?:laboratório|preço|medicamento)/i,
       /diferença.*(?:entre|preço|laboratório)/i,
-      /(?:melhor|pior).*(?:laboratório|opção|escolha)/i
+      /(?:melhor|pior).*(?:laboratório|opção|escolha)/i,
+      /(?:há|existe|tem).*diferença.*(?:preço|custo)/i,
+      /(?:original|genérico|biossimilar).*(?:vs|versus|comparado)/i,
+      /(?:dipirona|paracetamol|ibuprofeno).*(?:original|genérico)/i
     ],
     category_analysis: [
       /analise?.*(?:categoria|oncológico|sus|imunobiológico)/i,
@@ -3351,6 +3354,558 @@ function generatePurchaseRecommendation(bestOption, allOptions, quantity, saving
   }
 
   return recommendation;
+}
+
+// Implementar funções de comparação que estavam faltando
+async function compareLaboratories(medications, query) {
+  console.log('🔍 Comparando laboratórios...');
+  
+  // Agrupar medicamentos por laboratório
+  const labData = {};
+  medications.forEach(med => {
+    if (med.prices.length === 0) return;
+    
+    const labName = med.prices[0].lab?.name || 'Unknown';
+    if (!labData[labName]) {
+      labData[labName] = {
+        name: labName,
+        medications: [],
+        prices: [],
+        categories: new Set()
+      };
+    }
+    
+    labData[labName].medications.push(med.name);
+    labData[labName].prices.push(parseFloat(med.prices[0].value.toString()));
+    labData[labName].categories.add(med.category?.split(' | ')[0] || 'Outros');
+  });
+
+  // Calcular estatísticas por laboratório
+  const comparison = Object.values(labData).map(lab => {
+    const avgPrice = lab.prices.reduce((a, b) => a + b, 0) / lab.prices.length;
+    const minPrice = Math.min(...lab.prices);
+    const maxPrice = Math.max(...lab.prices);
+    const variance = lab.prices.reduce((sum, price) => sum + Math.pow(price - avgPrice, 2), 0) / lab.prices.length;
+    const volatility = (Math.sqrt(variance) / avgPrice) * 100;
+    
+    return {
+      laboratory: lab.name,
+      medicationCount: lab.medications.length,
+      avgPrice,
+      minPrice,
+      maxPrice,
+      volatility,
+      categories: Array.from(lab.categories),
+      priceRange: maxPrice - minPrice
+    };
+  });
+
+  comparison.sort((a, b) => a.avgPrice - b.avgPrice); // Ordenar por preço médio
+
+  const answer = `🏭 **Comparação de Laboratórios:**
+
+${comparison.slice(0, 10).map((lab, index) => 
+  `**${index + 1}. ${lab.laboratory}**
+   💰 **Preço médio:** R$ ${lab.avgPrice.toFixed(2)}
+   📊 **Faixa:** R$ ${lab.minPrice.toFixed(2)} - R$ ${lab.maxPrice.toFixed(2)}
+   💊 **Medicamentos:** ${lab.medicationCount}
+   📈 **Volatilidade:** ${lab.volatility.toFixed(1)}%
+   🏷️ **Categorias:** ${lab.categories.slice(0, 3).join(', ')}`
+).join('\n\n')}
+
+📊 **Resumo Comparativo:**
+• **Mais econômico:** ${comparison[0]?.laboratory} (R$ ${comparison[0]?.avgPrice.toFixed(2)} médio)
+• **Maior variedade:** ${comparison.reduce((max, lab) => lab.medicationCount > max.medicationCount ? lab : max).laboratory}
+• **Mais estável:** ${comparison.reduce((min, lab) => lab.volatility < min.volatility ? lab : min).laboratory} (${comparison.reduce((min, lab) => lab.volatility < min.volatility ? lab : min).volatility.toFixed(1)}% volatilidade)`;
+
+  return {
+    answer,
+    data: comparison,
+    insights: [
+      `${comparison.length} laboratórios comparados`,
+      `Diferença de R$ ${(comparison[comparison.length - 1]?.avgPrice - comparison[0]?.avgPrice).toFixed(2)} entre mais caro e mais barato`,
+      `Laboratório mais econômico: ${comparison[0]?.laboratory}`
+    ],
+    recommendations: [
+      'Considere múltiplos fornecedores para reduzir risco',
+      'Negocie contratos com laboratórios mais econômicos',
+      'Monitore volatilidade antes de decisões de longo prazo'
+    ],
+    confidence: 0.9
+  };
+}
+
+async function compareMedications(medications, query) {
+  console.log('🔍 Comparando medicamentos...');
+  
+  // Identificar medicamentos específicos na consulta
+  const medicationNames = extractMultipleMedicationsFromQuery(query);
+  
+  if (medicationNames.length < 2) {
+    // Se não identificou medicamentos específicos, comparar por categoria
+    return await compareByCategory(medications, query);
+  }
+
+  // Buscar medicamentos específicos
+  const foundMedications = medicationNames.map(name => {
+    return medications.find(med => 
+      med.name.toLowerCase().includes(name.toLowerCase()) ||
+      med.code.toLowerCase().includes(name.toLowerCase())
+    );
+  }).filter(Boolean);
+
+  if (foundMedications.length < 2) {
+    return {
+      answer: `Medicamentos especificados não encontrados ou insuficientes para comparação.`,
+      data: [],
+      insights: ['Medicamentos não encontrados'],
+      recommendations: ['Especifique nomes de medicamentos claramente'],
+      confidence: 0.4
+    };
+  }
+
+  const comparison = foundMedications.map(med => {
+    const currentPrice = med.prices[0] ? parseFloat(med.prices[0].value.toString()) : 0;
+    return {
+      name: med.name,
+      category: med.category,
+      currentPrice,
+      laboratory: med.prices[0]?.lab?.name || 'Unknown',
+      activeIngredient: med.activeIngredient
+    };
+  });
+
+  comparison.sort((a, b) => a.currentPrice - b.currentPrice);
+
+  const answer = `💊 **Comparação de Medicamentos:**
+
+${comparison.map((med, index) => 
+  `**${index + 1}. ${med.name}** (${med.laboratory})
+   💰 **Preço:** R$ ${med.currentPrice.toFixed(2)}
+   🧪 **Princípio ativo:** ${med.activeIngredient || 'N/A'}
+   🏷️ **Categoria:** ${med.category?.split(' | ')[0] || 'N/A'}`
+).join('\n\n')}
+
+📊 **Análise Comparativa:**
+• **Mais econômico:** ${comparison[0].name} - R$ ${comparison[0].currentPrice.toFixed(2)}
+• **Mais caro:** ${comparison[comparison.length - 1].name} - R$ ${comparison[comparison.length - 1].currentPrice.toFixed(2)}
+• **Diferença:** R$ ${(comparison[comparison.length - 1].currentPrice - comparison[0].currentPrice).toFixed(2)} (${(((comparison[comparison.length - 1].currentPrice - comparison[0].currentPrice) / comparison[comparison.length - 1].currentPrice) * 100).toFixed(1)}%)`;
+
+  return {
+    answer,
+    data: comparison,
+    insights: [
+      `${comparison.length} medicamentos comparados`,
+      `Economia de ${(((comparison[comparison.length - 1].currentPrice - comparison[0].currentPrice) / comparison[comparison.length - 1].currentPrice) * 100).toFixed(1)}% escolhendo mais barato`,
+      'Análise baseada em preços atuais'
+    ],
+    recommendations: [
+      `Escolher ${comparison[0].name} para melhor custo-benefício`,
+      'Verificar equivalência terapêutica entre opções',
+      'Considerar fatores clínicos além do preço'
+    ],
+    confidence: 0.88
+  };
+}
+
+async function compareCategories(medications, query) {
+  console.log('🔍 Comparando categorias...');
+  
+  // Agrupar por categoria
+  const categoryData = {};
+  medications.forEach(med => {
+    const category = med.category?.split(' | ')[0] || 'Outros';
+    if (!categoryData[category]) {
+      categoryData[category] = {
+        name: category,
+        medications: [],
+        prices: []
+      };
+    }
+    
+    categoryData[category].medications.push(med.name);
+    if (med.prices[0]) {
+      categoryData[category].prices.push(parseFloat(med.prices[0].value.toString()));
+    }
+  });
+
+  const comparison = Object.values(categoryData).map(cat => {
+    if (cat.prices.length === 0) return null;
+    
+    const avgPrice = cat.prices.reduce((a, b) => a + b, 0) / cat.prices.length;
+    const minPrice = Math.min(...cat.prices);
+    const maxPrice = Math.max(...cat.prices);
+    
+    return {
+      category: cat.name,
+      medicationCount: cat.medications.length,
+      avgPrice,
+      minPrice,
+      maxPrice,
+      priceRange: maxPrice - minPrice
+    };
+  }).filter(Boolean);
+
+  comparison.sort((a, b) => a.avgPrice - b.avgPrice);
+
+  const answer = `🏷️ **Comparação por Categoria:**
+
+${comparison.map((cat, index) => 
+  `**${index + 1}. ${cat.category}**
+   💰 **Preço médio:** R$ ${cat.avgPrice.toFixed(2)}
+   📊 **Faixa:** R$ ${cat.minPrice.toFixed(2)} - R$ ${cat.maxPrice.toFixed(2)}
+   💊 **Medicamentos:** ${cat.medicationCount}`
+).join('\n\n')}
+
+📊 **Insights por Categoria:**
+• **Mais econômica:** ${comparison[0]?.category}
+• **Mais cara:** ${comparison[comparison.length - 1]?.category}
+• **Maior variedade:** ${comparison.reduce((max, cat) => cat.medicationCount > max.medicationCount ? cat : max).category}`;
+
+  return {
+    answer,
+    data: comparison,
+    insights: [
+      `${comparison.length} categorias comparadas`,
+      `Diferença de R$ ${(comparison[comparison.length - 1]?.avgPrice - comparison[0]?.avgPrice).toFixed(2)} entre categorias`,
+      'Análise baseada em preços médios por categoria'
+    ],
+    recommendations: [
+      'Foque em categorias mais econômicas para reduzir custos',
+      'Considere alternativas dentro da mesma categoria',
+      'Monitore tendências específicas por categoria'
+    ],
+    confidence: 0.85
+  };
+}
+
+async function compareGeneral(medications, query) {
+  console.log('🔍 Processando comparação geral...');
+  
+  // Para consultas como "diferença entre dipirona original e genérico"
+  const medicationName = extractMainMedicationFromQuery(query);
+  
+  if (medicationName) {
+    return await compareOriginalVsGeneric(medications, medicationName, query);
+  }
+
+  // Fallback para comparação geral
+  return {
+    answer: 'Para comparações específicas, por favor especifique:\n• Quais medicamentos comparar\n• Ou quais laboratórios\n• Ou quais categorias\n\nExemplo: "Compare preços da Dipirona entre laboratórios"',
+    data: [],
+    insights: ['Consulta de comparação muito genérica'],
+    recommendations: ['Especifique o que deseja comparar'],
+    confidence: 0.3
+  };
+}
+
+async function compareOriginalVsGeneric(medications, medicationName, originalQuery) {
+  console.log(`🔍 Comparando original vs genérico: ${medicationName}`);
+  
+  // Buscar medicamentos relacionados
+  const relatedMedications = medications.filter(med => 
+    med.name.toLowerCase().includes(medicationName.toLowerCase()) ||
+    med.activeIngredient?.toLowerCase().includes(medicationName.toLowerCase())
+  );
+
+  if (relatedMedications.length === 0) {
+    return {
+      answer: `Nenhum medicamento encontrado relacionado a "${medicationName}".`,
+      data: [],
+      insights: ['Medicamento não encontrado'],
+      recommendations: ['Verifique o nome do medicamento'],
+      confidence: 0.4
+    };
+  }
+
+  // Separar por tipo (original vs genérico/biossimilar)
+  const originals = relatedMedications.filter(med => 
+    !med.category?.includes('Genérico') && 
+    !med.category?.includes('Biossimilar') &&
+    !med.name.toLowerCase().includes('genérico')
+  );
+  
+  const generics = relatedMedications.filter(med => 
+    med.category?.includes('Genérico') || 
+    med.category?.includes('Biossimilar') ||
+    med.name.toLowerCase().includes('genérico')
+  );
+
+  // Se não conseguiu separar claramente, agrupar por laboratório
+  if (originals.length === 0 && generics.length === 0) {
+    return await compareByLaboratoryForMedication(relatedMedications, medicationName);
+  }
+
+  const originalData = originals.map(med => ({
+    name: med.name,
+    price: med.prices[0] ? parseFloat(med.prices[0].value.toString()) : 0,
+    laboratory: med.prices[0]?.lab?.name || 'Unknown',
+    category: 'Original'
+  }));
+
+  const genericData = generics.map(med => ({
+    name: med.name,
+    price: med.prices[0] ? parseFloat(med.prices[0].value.toString()) : 0,
+    laboratory: med.prices[0]?.lab?.name || 'Unknown',
+    category: 'Genérico/Biossimilar'
+  }));
+
+  const allData = [...originalData, ...genericData].sort((a, b) => a.price - b.price);
+
+  const originalAvg = originalData.length > 0 ? 
+    originalData.reduce((sum, med) => sum + med.price, 0) / originalData.length : 0;
+  const genericAvg = genericData.length > 0 ? 
+    genericData.reduce((sum, med) => sum + med.price, 0) / genericData.length : 0;
+
+  const savings = originalAvg > 0 && genericAvg > 0 ? 
+    ((originalAvg - genericAvg) / originalAvg) * 100 : 0;
+
+  const answer = `💊 **Comparação: ${medicationName.charAt(0).toUpperCase() + medicationName.slice(1)} Original vs Genérico**
+
+📊 **Medicamentos Originais (${originalData.length}):**
+${originalData.map(med => 
+  `• **${med.name}** - R$ ${med.price.toFixed(2)} (${med.laboratory})`
+).join('\n')}
+${originalData.length > 0 ? `💰 **Preço médio original:** R$ ${originalAvg.toFixed(2)}` : '❌ Nenhum original encontrado'}
+
+🧬 **Medicamentos Genéricos/Biossimilares (${genericData.length}):**
+${genericData.map(med => 
+  `• **${med.name}** - R$ ${med.price.toFixed(2)} (${med.laboratory})`
+).join('\n')}
+${genericData.length > 0 ? `💰 **Preço médio genérico:** R$ ${genericAvg.toFixed(2)}` : '❌ Nenhum genérico encontrado'}
+
+💡 **Análise de Economia:**
+${originalAvg > 0 && genericAvg > 0 ? 
+  `• **Economia com genéricos:** ${savings.toFixed(1)}%
+   • **Diferença absoluta:** R$ ${(originalAvg - genericAvg).toFixed(2)}
+   • **Recomendação:** ${savings > 30 ? 'Genéricos oferecem economia significativa' : savings > 15 ? 'Economia moderada com genéricos' : 'Diferença pequena entre original e genérico'}` :
+  '• Dados insuficientes para comparação de economia'
+}
+
+🎯 **Opções Disponíveis (ordenadas por preço):**
+${allData.slice(0, 8).map((med, index) => 
+  `${index + 1}. ${med.name} - R$ ${med.price.toFixed(2)} (${med.category})`
+).join('\n')}`;
+
+  return {
+    answer,
+    data: allData,
+    insights: [
+      `${originalData.length} medicamentos originais vs ${genericData.length} genéricos`,
+      savings > 0 ? `Economia de ${savings.toFixed(1)}% com genéricos` : 'Comparação de preços disponível',
+      `${relatedMedications.length} opções totais encontradas`
+    ],
+    recommendations: [
+      savings > 20 ? 'Considere genéricos para economia significativa' : 'Avalie custo-benefício caso a caso',
+      'Verifique equivalência terapêutica com equipe médica',
+      'Monitore disponibilidade de ambas as opções'
+    ],
+    confidence: 0.92
+  };
+}
+
+async function compareByLaboratoryForMedication(medications, medicationName) {
+  console.log(`🔍 Comparando ${medicationName} por laboratório...`);
+  
+  const labComparison = medications.map(med => ({
+    name: med.name,
+    price: med.prices[0] ? parseFloat(med.prices[0].value.toString()) : 0,
+    laboratory: med.prices[0]?.lab?.name || 'Unknown',
+    category: med.category
+  })).sort((a, b) => a.price - b.price);
+
+  const avgPrice = labComparison.reduce((sum, med) => sum + med.price, 0) / labComparison.length;
+  const cheapest = labComparison[0];
+  const mostExpensive = labComparison[labComparison.length - 1];
+  const savings = ((mostExpensive.price - cheapest.price) / mostExpensive.price) * 100;
+
+  const answer = `💊 **Comparação: ${medicationName} por Laboratório**
+
+🏆 **Ranking por Preço:**
+${labComparison.map((med, index) => 
+  `${index + 1}. **${med.laboratory}** - R$ ${med.price.toFixed(2)}
+     ${med.name}`
+).join('\n\n')}
+
+📊 **Análise Econômica:**
+• **Mais barato:** ${cheapest.laboratory} - R$ ${cheapest.price.toFixed(2)}
+• **Mais caro:** ${mostExpensive.laboratory} - R$ ${mostExpensive.price.toFixed(2)}
+• **Preço médio:** R$ ${avgPrice.toFixed(2)}
+• **Economia máxima:** ${savings.toFixed(1)}% escolhendo ${cheapest.laboratory}
+
+💡 **Diferença absoluta:** R$ ${(mostExpensive.price - cheapest.price).toFixed(2)}`;
+
+  return {
+    answer,
+    data: labComparison,
+    insights: [
+      `${labComparison.length} laboratórios oferecem ${medicationName}`,
+      `Economia de ${savings.toFixed(1)}% possível`,
+      `Diferença de R$ ${(mostExpensive.price - cheapest.price).toFixed(2)} entre extremos`
+    ],
+    recommendations: [
+      `Escolher ${cheapest.laboratory} para melhor preço`,
+      'Verificar disponibilidade e prazo de entrega',
+      'Considerar histórico de qualidade do laboratório'
+    ],
+    confidence: 0.9
+  };
+}
+
+async function generateCategoryAnalysis(medications, category) {
+  console.log(`🔍 Analisando categoria: ${category}`);
+  
+  const prices = medications.map(med => 
+    med.prices[0] ? parseFloat(med.prices[0].value.toString()) : 0
+  ).filter(price => price > 0);
+
+  const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  
+  // Top medicamentos da categoria
+  const topMedications = medications
+    .filter(med => med.prices[0])
+    .map(med => ({
+      name: med.name,
+      price: parseFloat(med.prices[0].value.toString()),
+      laboratory: med.prices[0].lab?.name
+    }))
+    .sort((a, b) => a.price - b.price)
+    .slice(0, 10);
+
+  const answer = `🏷️ **Análise da Categoria: ${category}**
+
+📊 **Estatísticas Gerais:**
+• **Total de medicamentos:** ${medications.length}
+• **Preço médio:** R$ ${avgPrice.toFixed(2)}
+• **Faixa de preços:** R$ ${minPrice.toFixed(2)} - R$ ${maxPrice.toFixed(2)}
+• **Amplitude:** R$ ${(maxPrice - minPrice).toFixed(2)}
+
+💊 **Top 10 Medicamentos Mais Econômicos:**
+${topMedications.map((med, index) => 
+  `${index + 1}. **${med.name}** - R$ ${med.price.toFixed(2)} (${med.laboratory})`
+).join('\n')}
+
+📈 **Insights da Categoria:**
+• **Medicamento mais barato:** ${topMedications[0]?.name} - R$ ${topMedications[0]?.price.toFixed(2)}
+• **Medicamento mais caro:** ${topMedications[topMedications.length - 1]?.name} - R$ ${topMedications[topMedications.length - 1]?.price.toFixed(2)}
+• **Variação na categoria:** ${((maxPrice - minPrice) / maxPrice * 100).toFixed(1)}%`;
+
+  return {
+    answer,
+    data: topMedications,
+    insights: [
+      `${medications.length} medicamentos na categoria ${category}`,
+      `Preço médio: R$ ${avgPrice.toFixed(2)}`,
+      `Variação de ${((maxPrice - minPrice) / maxPrice * 100).toFixed(1)}% na categoria`
+    ],
+    recommendations: [
+      'Monitore medicamentos mais econômicos da categoria',
+      'Considere alternativas dentro da mesma classe terapêutica',
+      'Avalie custo-efetividade baseado em evidências clínicas'
+    ],
+    confidence: 0.87
+  };
+}
+
+// Funções auxiliares para extração melhorada
+function extractMultipleMedicationsFromQuery(query) {
+  const medications = [];
+  const commonMedications = ['paracetamol', 'dipirona', 'ibuprofeno', 'amoxicilina', 'losartana', 'metformina'];
+  
+  for (const med of commonMedications) {
+    if (query.toLowerCase().includes(med)) {
+      medications.push(med);
+    }
+  }
+  
+  return medications;
+}
+
+function extractMainMedicationFromQuery(query) {
+  console.log(`🔍 Extraindo medicamento de: "${query}"`);
+  
+  const patterns = [
+    // Padrões específicos para consultas de comparação
+    /(?:entre|de)\s+(dipirona|paracetamol|ibuprofeno|amoxicilina|losartana|metformina)\s+(?:original|genérico)/i,
+    /(?:diferença|compare).*?(dipirona|paracetamol|ibuprofeno|amoxicilina|losartana|metformina)/i,
+    /(dipirona|paracetamol|ibuprofeno|amoxicilina|losartana|metformina)\s+(?:original|genérico)/i,
+    // Padrão mais geral
+    /(?:diferença|compare).*?(?:entre|de)\s+([a-zA-Z]+)/i,
+    /([a-zA-Z]+)\s+(?:original|genérico)/i,
+    // Medicamentos específicos
+    /(paracetamol|dipirona|ibuprofeno|amoxicilina|losartana|metformina|adempas|herceptin|keytruda)/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = query.match(pattern);
+    if (match && match[1]) {
+      const medication = match[1].toLowerCase();
+      console.log(`✅ Medicamento extraído: "${medication}"`);
+      return medication;
+    }
+  }
+
+  console.log('❌ Nenhum medicamento extraído');
+  return '';
+}
+
+async function compareByCategory(medications, query) {
+  console.log('🔍 Comparando por categoria...');
+  
+  // Extrair categoria da consulta
+  const category = extractCategoryFromQuery(query);
+  
+  if (category) {
+    const categoryMedications = medications.filter(med => 
+      med.category?.toLowerCase().includes(category.toLowerCase())
+    );
+    
+    if (categoryMedications.length > 0) {
+      return await generateCategoryAnalysis(categoryMedications, category);
+    }
+  }
+
+  // Se não identificou categoria específica, mostrar top por preço
+  const topCheap = medications
+    .filter(med => med.prices[0])
+    .map(med => ({
+      name: med.name,
+      price: parseFloat(med.prices[0].value.toString()),
+      laboratory: med.prices[0].lab?.name,
+      category: med.category?.split(' | ')[0]
+    }))
+    .sort((a, b) => a.price - b.price)
+    .slice(0, 10);
+
+  const answer = `💊 **Medicamentos Mais Econômicos (Geral):**
+
+${topCheap.map((med, index) => 
+  `${index + 1}. **${med.name}** (${med.laboratory})
+   💰 R$ ${med.price.toFixed(2)} - ${med.category}`
+).join('\n\n')}
+
+📊 **Para comparação específica, tente:**
+• "Compare preços da Dipirona entre laboratórios"
+• "Diferença entre Herceptin original e biossimilares"
+• "Compare medicamentos oncológicos por preço"`;
+
+  return {
+    answer,
+    data: topCheap,
+    insights: [
+      `${topCheap.length} medicamentos mais econômicos identificados`,
+      'Comparação geral por preço',
+      'Use consultas mais específicas para melhores resultados'
+    ],
+    recommendations: [
+      'Especifique medicamento ou categoria para comparação detalhada',
+      'Use nomes completos para melhores resultados',
+      'Considere fatores além do preço na decisão'
+    ],
+    confidence: 0.6
+  };
 }
 
 async function processTopDropsQuery(medications, limit) {

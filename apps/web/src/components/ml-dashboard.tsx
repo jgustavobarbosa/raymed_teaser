@@ -40,6 +40,22 @@ interface CompetitivenessData {
   priceAdvantage: number;
 }
 
+interface Category {
+  name: string;
+  count: number;
+  emoji: string;
+}
+
+interface MedicationOption {
+  code: string;
+  name: string;
+  category: string;
+  currentPrice: {
+    value: number;
+    labName: string;
+  } | null;
+}
+
 interface MLDashboardProps {
   medicationCode?: string;
   laboratoryId?: string;
@@ -49,15 +65,61 @@ export default function MLDashboard({ medicationCode, laboratoryId }: MLDashboar
   const [predictions, setPredictions] = useState<ModelResult[]>([]);
   const [outliers, setOutliers] = useState<Outlier[]>([]);
   const [competitiveness, setCompetitiveness] = useState<CompetitivenessData[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [medicationsByCategory, setMedicationsByCategory] = useState<MedicationOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedMedication, setSelectedMedication] = useState(medicationCode || 'SUS-PARACETAMOL');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedMedication, setSelectedMedication] = useState(medicationCode || '');
   const [predictionDays, setPredictionDays] = useState(30);
   const [outlierThreshold, setOutlierThreshold] = useState(2.5);
 
+  // Carregar dados iniciais
+  useEffect(() => {
+    loadCategories();
+    loadMLDashboard();
+  }, []);
+
+  // Carregar medicamentos quando categoria muda
+  useEffect(() => {
+    if (selectedCategory) {
+      loadMedicationsByCategory(selectedCategory);
+    }
+  }, [selectedCategory]);
+
   // Carregar dados do dashboard ML
   useEffect(() => {
-    loadMLDashboard();
+    if (selectedMedication) {
+      loadMLDashboard();
+    }
   }, [selectedMedication, laboratoryId]);
+
+  const loadCategories = async () => {
+    try {
+      const response = await fetch('/api/server/medications/categories');
+      const result = await response.json();
+      
+      if (result.success) {
+        setCategories(result.data || []);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar categorias:', error);
+    }
+  };
+
+  const loadMedicationsByCategory = async (category: string) => {
+    try {
+      const response = await fetch(`/api/server/medications/by-category/${encodeURIComponent(category)}`);
+      const result = await response.json();
+      
+      if (result.success) {
+        setMedicationsByCategory(result.data || []);
+        // Limpar medicamento selecionado quando categoria muda
+        setSelectedMedication('');
+      }
+    } catch (error) {
+      console.error('Erro ao carregar medicamentos por categoria:', error);
+    }
+  };
 
   const loadMLDashboard = async () => {
     try {
@@ -174,21 +236,37 @@ export default function MLDashboard({ medicationCode, laboratoryId }: MLDashboar
         <CardContent className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
+              <label className="form-label">🏷️ Categoria de Medicamento:</label>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="form-select"
+              >
+                <option value="">Selecione uma categoria</option>
+                {categories.map((cat) => (
+                  <option key={cat.name} value={cat.name}>
+                    {cat.emoji} {cat.name} ({cat.count})
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
               <label className="form-label">💊 Medicamento:</label>
               <select
                 value={selectedMedication}
                 onChange={(e) => setSelectedMedication(e.target.value)}
                 className="form-select"
+                disabled={!selectedCategory}
               >
-                <option value="">Selecione um medicamento</option>
-                <option value="PARACETAMOL-500MG">💊 Paracetamol 500mg</option>
-                <option value="DIPIRONA-500MG">💊 Dipirona 500mg</option>
-                <option value="IBUPROFENO-400MG">💊 Ibuprofeno 400mg</option>
-                <option value="ADEMPAS-1-5MG">🫀 Adempas 1,5mg (Bayer)</option>
-                <option value="HERCEPTIN-440MG">🎗️ Herceptin 440mg (Roche)</option>
-                <option value="KEYTRUDA-100MG">🧬 Keytruda 100mg (MSD)</option>
-                <option value="GLIVEC-400MG">🩸 Glivec 400mg (Novartis)</option>
-                <option value="AVASTIN-400MG">🎯 Avastin 400mg (Roche)</option>
+                <option value="">
+                  {selectedCategory ? 'Selecione um medicamento' : 'Primeiro selecione uma categoria'}
+                </option>
+                {medicationsByCategory.map((med) => (
+                  <option key={med.code} value={med.code}>
+                    {med.name} - {med.currentPrice ? `R$ ${med.currentPrice.value.toFixed(2)} (${med.currentPrice.labName})` : 'Sem preço'}
+                  </option>
+                ))}
               </select>
             </div>
             
@@ -234,28 +312,38 @@ export default function MLDashboard({ medicationCode, laboratoryId }: MLDashboar
           </div>
           
           {/* Filtros ativos */}
-          {selectedMedication && (
+          {(selectedCategory || selectedMedication) && (
             <div className="mt-4 flex flex-wrap gap-2">
               <span className="text-sm text-gray-600">Configuração ativa:</span>
-              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
-                💊 {selectedMedication.replace('-', ' ').toLowerCase()}
-                <button onClick={() => setSelectedMedication('')} className="ml-1 text-blue-600">×</button>
-              </span>
-              <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">
+              {selectedCategory && (
+                <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">
+                  🏷️ {selectedCategory} ({medicationsByCategory.length} medicamentos)
+                  <button onClick={() => {setSelectedCategory(''); setSelectedMedication(''); setMedicationsByCategory([]);}} className="ml-1 text-purple-600">×</button>
+                </span>
+              )}
+              {selectedMedication && (
+                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                  💊 {medicationsByCategory.find(m => m.code === selectedMedication)?.name || selectedMedication}
+                  <button onClick={() => setSelectedMedication('')} className="ml-1 text-blue-600">×</button>
+                </span>
+              )}
+              <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
                 📅 {predictionDays} dias
               </span>
-              <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
+              <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs">
                 🎯 Threshold {outlierThreshold}
               </span>
               <button 
                 onClick={() => {
+                  setSelectedCategory('');
                   setSelectedMedication('');
+                  setMedicationsByCategory([]);
                   setPredictionDays(30);
                   setOutlierThreshold(2.5);
                 }}
                 className="text-xs text-gray-500 hover:text-gray-700"
               >
-                🗑️ Limpar configuração
+                🗑️ Limpar tudo
               </button>
             </div>
           )}
